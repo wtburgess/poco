@@ -154,6 +154,17 @@ body {
 .poco-alive, .poco-alive .poco-eyes { animation: none; }
 .poco-pop { animation: none; }
 
+/* Illustrated mascot: zoom slightly + cover so the source padding is cropped
+   and Poco fills the round medallion containers. */
+.poco-face {
+  width: 136%;
+  height: 136%;
+  max-width: none;
+  object-fit: cover;
+  object-position: center 42%;
+  display: block;
+}
+
 /* ---- Streak flame ---- */
 .streak-flame { animation: flameFlicker 1.6s ease-in-out infinite; transform-origin: 50% 80%; }
 @keyframes flameFlicker {

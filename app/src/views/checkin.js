@@ -104,7 +104,7 @@ function heroSection(name, pop = false) {
   return `
     <section class="text-center mb-2" data-hero>
       <div class="flex justify-center mb-3">
-        <div class="w-40 h-40 flex items-center justify-center" data-poco>${pocoImg(148)}</div>
+        <div class="w-40 h-40 rounded-full overflow-hidden chunky-border card-shadow bg-secondary-container flex items-center justify-center" data-poco>${pocoImg(148)}</div>
       </div>
       <div class="flex justify-center mb-3">${streakBadge()}</div>
       <h1 class="font-headline-md text-headline-md text-on-background mb-1">${title}</h1>

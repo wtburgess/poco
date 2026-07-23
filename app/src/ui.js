@@ -44,8 +44,10 @@ export function pocoSvg(size = 48, opts = {}) {
 
 // Illustrated PNG mascot (/poco.png) for the static logo / avatar / hero spots,
 // with the inline SVG as an automatic fallback until the image file is added.
-export function pocoImg(size = 48, cls = "") {
-  return `<img src="/poco.png" alt="Poco" width="${size}" height="${size}" class="${cls}" decoding="async" style="width:${size}px;height:${size}px;object-fit:contain;display:block" onerror="window.__pocoFallback&&window.__pocoFallback(this,${size})">`;
+export function pocoImg(size = 48) {
+  // Zoom-cropped via .poco-face so the illustration's padding is trimmed and it
+  // fills its (overflow-hidden) round container. ?v busts any cached 404.
+  return `<img src="/poco.png?v=2" alt="Poco" width="${size}" height="${size}" decoding="async" class="poco-face" onerror="window.__pocoFallback&&window.__pocoFallback(this,${size})">`;
 }
 if (typeof window !== "undefined") {
   window.__pocoFallback = (imgEl, s) => {
