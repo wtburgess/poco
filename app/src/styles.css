@@ -1,0 +1,239 @@
+/* Organic Toy-Box design system — custom utility classes used across views. */
+
+:root {
+  --bark: #28180b;
+  --shadow-soft: 0px 4px 0px 0px rgba(112, 90, 73, 0.15);
+  --shadow-soft-up: 0px -4px 0px 0px rgba(112, 90, 73, 0.10);
+  --shadow-press: 0px 2px 0px 0px rgba(40, 24, 11, 0.9);
+}
+
+body {
+  font-family: "Work Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Paper grain texture (3-5% opacity) */
+  background-image:
+    radial-gradient(rgba(112, 90, 73, 0.035) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+
+/* ---- Borders & shadows (the signature 2.5px bark border) ---- */
+.chunky-border,
+.organic-border,
+.wobbly-border {
+  border: 2.5px solid var(--bark);
+}
+.organic-border { border-radius: 1.5rem; }
+.wobbly-border { border-radius: 24px 22px 26px 20px; }
+
+.chunky-shadow,
+.card-shadow,
+.toy-card,
+.soft-shadow,
+.tactile-card {
+  box-shadow: var(--shadow-soft);
+}
+
+/* ---- Toy physics: press to depress ---- */
+.chunky-button,
+.toy-btn,
+.tactile-button {
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.chunky-button:active,
+.toy-btn:active,
+.tactile-button:active {
+  transform: translateY(2px);
+  box-shadow: none !important;
+}
+
+.tactile-button {
+  border: 2.5px solid var(--bark);
+  box-shadow: var(--shadow-soft);
+}
+
+/* ---- Organic shapes ---- */
+.leaf-shape { border-radius: 50% 16px 50% 16px; }
+.check-blob { border-radius: 50% 45% 55% 48%; }
+
+/* ---- Settings toggle ---- */
+.toggle-checkbox:checked {
+  left: auto;
+  right: 0.125rem;
+}
+.toggle-checkbox:checked + .toggle-label {
+  background-color: #3c6626;
+}
+
+/* ---- Misc ---- */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.material-symbols-outlined {
+  user-select: none;
+  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+}
+.fill-icon { font-variation-settings: 'FILL' 1; }
+
+/* ---- View enter animation ---- */
+.view-enter { animation: viewFade 0.28s ease both; }
+@keyframes viewFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Toast ---- */
+#toast-root {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 60;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  background: #083542;
+  color: #def4ff;
+  border: 2.5px solid var(--bark);
+  border-radius: 9999px;
+  padding: 10px 20px;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: toastPop 0.3s ease both;
+}
+@keyframes toastPop {
+  from { opacity: 0; transform: translateY(12px) scale(0.9); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.toast.leaving { animation: toastOut 0.25s ease both; }
+@keyframes toastOut {
+  to { opacity: 0; transform: translateY(12px); }
+}
+
+/* ---- Modal ---- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 53, 66, 0.35);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 70;
+  animation: fadeIn 0.2s ease both;
+  padding: 16px;
+}
+@media (min-width: 640px) {
+  .modal-backdrop { align-items: center; }
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.modal-sheet {
+  background: #ffffff;
+  border: 2.5px solid var(--bark);
+  border-radius: 28px;
+  width: 100%;
+  max-width: 460px;
+  padding: 24px;
+  box-shadow: 0px 8px 0px 0px rgba(40, 24, 11, 0.15);
+  animation: sheetUp 0.28s ease both;
+}
+@keyframes sheetUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Poco is alive ---- */
+.poco-alive {
+  animation: pocoBob 4.5s ease-in-out infinite;
+  transform-origin: 50% 90%;
+  will-change: transform;
+}
+@keyframes pocoBob {
+  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+  50%      { transform: translateY(-3px) rotate(1.5deg); }
+}
+.poco-alive .poco-eyes {
+  animation: pocoBlink 5.2s infinite;
+  transform-origin: 50% 55%;
+}
+@keyframes pocoBlink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95%           { transform: scaleY(0.1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .poco-alive, .poco-alive .poco-eyes { animation: none; }
+}
+.poco-pop { animation: pocoPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes pocoPop {
+  0%   { transform: scale(0.85) rotate(-6deg); }
+  60%  { transform: scale(1.12) rotate(4deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+/* ---- Streak flame ---- */
+.streak-flame { animation: flameFlicker 1.6s ease-in-out infinite; transform-origin: 50% 80%; }
+@keyframes flameFlicker {
+  0%, 100% { transform: scale(1) rotate(-2deg); }
+  50%      { transform: scale(1.12) rotate(2deg); }
+}
+
+/* ---- Confetti ---- */
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 80; overflow: hidden; }
+.confetti span {
+  position: absolute;
+  top: -8vh;
+  animation-name: confettiFall;
+  animation-timing-function: cubic-bezier(0.4, 0.1, 0.6, 1);
+  animation-fill-mode: both;
+}
+@keyframes confettiFall {
+  0%   { transform: translateY(-10vh) rotate(0deg); opacity: 0; }
+  10%  { opacity: 1; }
+  100% { transform: translateY(110vh) rotate(540deg); opacity: 0.9; }
+}
+
+/* ---- "Done for today" check-in state ---- */
+.checkin-done {
+  background: #eaf7e0 !important;
+  color: #275012 !important;
+  cursor: default;
+}
+.checkin-done:active { transform: none; box-shadow: var(--shadow-soft) !important; }
+
+/* Range input styled as sloth slider track fill helper */
+input[type="range"].sloth-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 16px;
+  border-radius: 9999px;
+  border: 2.5px solid var(--bark);
+  background: #d7f2ff;
+  cursor: pointer;
+}
+input[type="range"].sloth-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  background: #a96400;
+  border: 2.5px solid var(--bark);
+  box-shadow: var(--shadow-soft);
+  margin-top: -1px;
+}
+input[type="range"].sloth-range::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  background: #a96400;
+  border: 2.5px solid var(--bark);
+}

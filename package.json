@@ -1,0 +1,15 @@
+{
+  "name": "poco-life-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Poco — slow & steady life tracker, with real background push nudges.",
+  "scripts": {
+    "vapid": "web-push generate-vapid-keys",
+    "dev": "cd app && python3 -m http.server 4173"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.34.0",
+    "web-push": "^3.6.7"
+  }
+}
