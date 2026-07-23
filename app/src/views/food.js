@@ -1,8 +1,9 @@
-// Food tracker view + shared meal-adding modal.
+// Food tracker view.
 import {
-  getTodayMeals, addMeal, removeMeal, getState, addPoints, weekKeys,
+  getTodayMeals, removeMeal, getState, weekKeys,
 } from "../store.js";
-import { icon, pocoImg, shell, toast, openModal, closeModal, pct } from "../ui.js";
+import { icon, pocoImg, shell, toast, pct } from "../ui.js";
+import { logBite } from "./logfood.js";
 
 const SUGGESTIONS = [
   '"One more leafy green today? No rush, just a thought."',
@@ -11,8 +12,6 @@ const SUGGESTIONS = [
   '"Protein\'s a little low — maybe some nuts?"',
 ];
 
-const MEAL_ICONS = ["breakfast_dining", "lunch_dining", "dinner_dining", "local_cafe", "bakery_dining", "nutrition"];
-
 export function renderFood(root) {
   const meals = getTodayMeals();
   const { goals } = getState();
@@ -20,6 +19,7 @@ export function renderFood(root) {
   const goal = goals.calories;
   const suggestion = SUGGESTIONS[new Date().getDate() % SUGGESTIONS.length];
   const weekTotals = weekIntake();
+  const macros = dayMacros(meals, intake);
 
   const body = `
     <div class="mb-1">
@@ -47,11 +47,11 @@ export function renderFood(root) {
       </div>
     </section>
 
-    <!-- Macros (estimated from calories) -->
+    <!-- Macros: real totals when logged, otherwise estimated from calories -->
     <section class="flex gap-4 justify-between">
-      ${macroRing("Protein", Math.round(intake * 0.075), "primary")}
-      ${macroRing("Carbs", Math.round(intake * 0.11), "tertiary-fixed-dim")}
-      ${macroRing("Fat", Math.round(intake * 0.035), "secondary")}
+      ${macroRing("Protein", macros.protein, "primary")}
+      ${macroRing("Carbs", macros.carbs, "tertiary-fixed-dim")}
+      ${macroRing("Fat", macros.fat, "secondary")}
     </section>
 
     <!-- Poco suggests -->
@@ -99,6 +99,20 @@ function bowlFruit(fillPct) {
     <div class="absolute bottom-0 w-40 h-16 bg-secondary-container chunky-border z-10" style="border-radius:0 0 80px 80px;"></div>
     ${shapes.slice(0, fruits).join("")}
   `;
+}
+
+// Sum real protein/fat/carbs from the day's meals. If nothing carries macros
+// yet (old entries, or a calorie-only bite), fall back to the rough calorie
+// estimate so the rings never read empty.
+function dayMacros(meals, intake) {
+  const sum = (k) => meals.reduce((s, m) => s + (Number(m[k]) || 0), 0);
+  const p = sum("protein"), f = sum("fat"), c = sum("carbs");
+  if (p || f || c) return { protein: Math.round(p), fat: Math.round(f), carbs: Math.round(c) };
+  return {
+    protein: Math.round(intake * 0.075),
+    carbs: Math.round(intake * 0.11),
+    fat: Math.round(intake * 0.035),
+  };
 }
 
 function macroRing(label, grams, color) {
@@ -155,64 +169,12 @@ function weekIntake() {
 }
 
 function wire(root) {
-  root.querySelector("[data-add-meal]").addEventListener("click", () => mealModal(() => renderFood(root)));
+  root.querySelector("[data-add-meal]").addEventListener("click", () => logBite(() => renderFood(root)));
   root.querySelectorAll("[data-remove-meal]").forEach((b) =>
     b.addEventListener("click", () => {
       removeMeal(b.dataset.removeMeal);
       renderFood(root);
       toast("Removed", "delete");
     })
-  );
-}
-
-// ---- Shared meal modal (used by Food + Check-in) ----
-export function mealModal(onDone) {
-  openModal(
-    `
-    <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Log a bite</h3>
-    <label class="block font-label-bold text-label-bold text-on-surface-variant mb-1">What did you eat?</label>
-    <input data-field="name" type="text" placeholder="e.g. Avocado toast" class="w-full mb-4 px-4 py-3 rounded-lg chunky-border bg-[#F2EBD4] font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
-    <label class="block font-label-bold text-label-bold text-on-surface-variant mb-1">Calories (kcal)</label>
-    <input data-field="kcal" type="number" min="0" placeholder="350" class="w-full mb-4 px-4 py-3 rounded-lg chunky-border bg-[#F2EBD4] font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
-    <label class="block font-label-bold text-label-bold text-on-surface-variant mb-2">Type</label>
-    <div class="flex flex-wrap gap-2 mb-6" data-icons>
-      ${MEAL_ICONS.map((ic, i) => `<button data-icon="${ic}" class="chunky-button w-11 h-11 rounded-full chunky-border flex items-center justify-center ${i === 0 ? "bg-primary text-on-primary" : "bg-surface-container"}">${icon(ic)}</button>`).join("")}
-    </div>
-    <div class="flex gap-3">
-      <button data-cancel class="chunky-button flex-1 py-3 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold text-on-surface">Cancel</button>
-      <button data-save class="chunky-button flex-1 py-3 rounded-full chunky-border bg-primary text-on-primary font-label-bold text-label-bold card-shadow">Add it</button>
-    </div>
-  `,
-    {
-      onMount: (mroot) => {
-        let selectedIcon = MEAL_ICONS[0];
-        mroot.querySelectorAll("[data-icon]").forEach((b) =>
-          b.addEventListener("click", () => {
-            selectedIcon = b.dataset.icon;
-            mroot.querySelectorAll("[data-icon]").forEach((x) => {
-              x.className = `chunky-button w-11 h-11 rounded-full chunky-border flex items-center justify-center ${
-                x === b ? "bg-primary text-on-primary" : "bg-surface-container"
-              }`;
-            });
-          })
-        );
-        mroot.querySelector("[data-cancel]").addEventListener("click", closeModal);
-        mroot.querySelector("[data-field='name']").focus();
-        mroot.querySelector("[data-save]").addEventListener("click", () => {
-          const name = mroot.querySelector("[data-field='name']").value.trim();
-          const kcal = parseInt(mroot.querySelector("[data-field='kcal']").value, 10) || 0;
-          if (!name) {
-            mroot.querySelector("[data-field='name']").focus();
-            return;
-          }
-          const time = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-          addMeal({ name, kcal, time, icon: selectedIcon });
-          addPoints(5);
-          closeModal();
-          toast(`${name} added. +5 🌿`);
-          if (onDone) onDone();
-        });
-      },
-    }
   );
 }

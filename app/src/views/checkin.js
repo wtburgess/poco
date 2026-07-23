@@ -5,7 +5,7 @@ import {
 } from "../store.js";
 import { icon, pocoImg, toast, shell, celebrate } from "../ui.js";
 import { heroState, doneTap } from "../poco.js";
-import { mealModal } from "./food.js";
+import { logBite } from "./logfood.js";
 
 const MOODS = [
   "sentiment_very_dissatisfied",
@@ -203,7 +203,7 @@ function wire(root, name) {
 
   // Food quick log
   root.querySelector("[data-log-food]").addEventListener("click", () =>
-    mealModal(() => renderCheckin(root, { name: getState().profile.name }))
+    logBite(() => renderCheckin(root, { name: getState().profile.name }))
   );
 
   // Commit today's check-in
