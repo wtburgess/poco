@@ -1,6 +1,6 @@
 // Health stats view — derives weekly averages from stored check-ins.
 import { getState, weekKeys } from "../store.js";
-import { icon, pocoSvg, shell } from "../ui.js";
+import { icon, pocoImg, shell } from "../ui.js";
 
 export function renderHealth(root) {
   const { checkins } = getState();
@@ -45,7 +45,7 @@ export function renderHealth(root) {
     })}
 
     <div class="mt-2 p-6 bg-[#f2ebd4] chunky-border rounded-xl flex gap-4 items-start shadow-[inset_0px_4px_8px_rgba(112,90,73,0.1)]">
-      <div class="w-12 h-12 rounded-full chunky-border overflow-hidden bg-secondary-container flex-shrink-0 flex items-center justify-center">${pocoSvg(46)}</div>
+      <div class="w-12 h-12 rounded-full chunky-border overflow-hidden bg-secondary-container flex-shrink-0 flex items-center justify-center">${pocoImg(46)}</div>
       <p class="font-body-lg text-body-lg text-on-secondary-fixed-variant leading-relaxed">${insight}</p>
     </div>
   `;

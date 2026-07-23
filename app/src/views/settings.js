@@ -2,11 +2,12 @@
 import {
   getState, updateGoals, updateSettings, updateProfile, resetAll,
 } from "../store.js";
-import { icon, pocoSvg, shell, toast, openModal, closeModal } from "../ui.js";
+import { icon, pocoImg, shell, toast, openModal, closeModal } from "../ui.js";
 import {
   notifySupported, permission, requestPermission, fireNudge,
 } from "../notify.js";
 import { enableReminders, disableReminders, updateReminderTime } from "../webpush.js";
+import { isCloud, signOut } from "../supabase.js";
 
 export function renderSettings(root) {
   const { profile, goals, settings, points } = getState();
@@ -18,7 +19,7 @@ export function renderSettings(root) {
         <span class="material-symbols-outlined text-6xl fill-icon">eco</span>
       </div>
       <div class="relative">
-        <div class="w-24 h-24 rounded-full chunky-border bg-secondary-container flex items-center justify-center overflow-hidden shadow-[0px_4px_0px_0px_rgba(40,24,11,0.15)]">${pocoSvg(90)}</div>
+        <div class="w-24 h-24 rounded-full chunky-border bg-secondary-container flex items-center justify-center overflow-hidden shadow-[0px_4px_0px_0px_rgba(40,24,11,0.15)]">${pocoImg(88)}</div>
         <button data-edit-name class="chunky-button absolute -bottom-2 -right-2 bg-secondary-container rounded-full w-8 h-8 flex items-center justify-center chunky-border">${icon("edit", "text-on-secondary-fixed text-sm")}</button>
       </div>
       <div class="flex-1 text-center sm:text-left">
@@ -86,6 +87,7 @@ export function renderSettings(root) {
     <!-- Actions -->
     <section class="flex flex-col gap-4 mt-2">
       <button data-save-prefs class="tactile-button chunky-button bg-primary text-on-primary font-label-bold text-label-bold py-3 px-6 rounded-full w-full flex items-center justify-center gap-2">${icon("save")} Save Preferences</button>
+      ${isCloud() ? `<button data-signout class="tactile-button chunky-button bg-surface-container-lowest text-on-surface font-label-bold text-label-bold py-3 px-6 rounded-full w-full flex items-center justify-center gap-2">${icon("logout")} Sign out</button>` : ""}
       <button data-reset class="tactile-button chunky-button bg-surface-container-lowest text-error font-label-bold text-label-bold py-3 px-6 rounded-full w-full flex items-center justify-center gap-2">${icon("restart_alt")} Reset all data</button>
     </section>
   `;
@@ -190,6 +192,11 @@ function wire(root) {
   });
 
   root.querySelector("[data-save-prefs]").addEventListener("click", () => toast("Preferences saved", "check_circle"));
+
+  root.querySelector("[data-signout]")?.addEventListener("click", async () => {
+    await signOut();
+    location.reload();
+  });
 
   root.querySelector("[data-reset]").addEventListener("click", () => {
     if (confirm("Reset all data and start fresh? This clears your check-ins, meals, and habits.")) {

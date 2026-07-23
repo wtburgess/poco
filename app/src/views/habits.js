@@ -3,7 +3,7 @@ import {
   getState, weekKeys, WEEKDAY_LABELS, toggleHabit, habitStreak,
   addHabit, removeHabit, addPoints, todayKey,
 } from "../store.js";
-import { icon, pocoSvg, shell, toast, openModal, closeModal } from "../ui.js";
+import { icon, pocoImg, shell, toast, openModal, closeModal } from "../ui.js";
 
 const LEAF_COLORS = [
   { name: "Moss", value: "primary-fixed", text: "on-primary-fixed" },
@@ -55,7 +55,7 @@ export function renderHabits(root) {
       <div class="absolute -right-4 -top-4 w-24 h-24 bg-primary-fixed/30 rounded-full blur-xl"></div>
       <div class="w-24 h-32 relative flex-shrink-0 bg-surface-container-low rounded-t-full rounded-b-xl chunky-border overflow-hidden flex items-end justify-center pb-2">
         <div class="absolute bottom-0 w-full bg-primary-fixed transition-all duration-1000" style="height:${progress}%"></div>
-        <div class="w-16 h-16 bg-secondary-container chunky-border rounded-full z-10 flex items-center justify-center overflow-hidden">${pocoSvg(60)}</div>
+        <div class="w-16 h-16 bg-secondary-container chunky-border rounded-full z-10 flex items-center justify-center overflow-hidden">${pocoImg(60)}</div>
       </div>
       <div class="flex-1">
         <h3 class="font-headline-md text-headline-md text-on-surface mb-1">${progressTitle(progress)}</h3>

@@ -1,4 +1,5 @@
 // Central app state with localStorage persistence.
+import { cloudSync, cloudReset } from "./supabase.js";
 
 const STORAGE_KEY = "poco.state.v1";
 // Older builds saved under a different key; read it once so nobody loses data.
@@ -158,11 +159,30 @@ export function getState() {
   return state;
 }
 
+// Replace the whole state with cloud data on login. Does NOT push back up.
+export function hydrate(newState) {
+  state = migrate(newState);
+  emit();
+}
+
+// The profile row bundles name/goals/points/cosmetics/settings — several
+// mutations touch it, so they all funnel through here.
+function syncProfile() {
+  cloudSync("profile", {
+    name: state.profile.name,
+    goals: state.goals,
+    points: state.points,
+    cosmetics: state.cosmetics,
+    settings: state.settings,
+  });
+}
+
 // ---- Mutations ----
 export function saveCheckin(patch) {
   const key = todayKey();
   state.checkins[key] = { ...(state.checkins[key] || {}), ...patch };
   emit();
+  cloudSync("checkin", { date: key, c: state.checkins[key] });
 }
 
 export function getTodayCheckin() {
@@ -205,19 +225,26 @@ export function commitCheckin() {
   const awarded = 15 + bonus;
   state.points += awarded;
   emit();
+  cloudSync("checkin", { date: key, c });
+  syncProfile();
   return { alreadyLogged: false, streak, awarded, bonus, milestone };
 }
 
+// Returns the created meal (so callers/sync can reference its id).
 export function addMeal(meal) {
   const key = todayKey();
   if (!state.meals[key]) state.meals[key] = [];
-  state.meals[key].push({ id: mkid(), ...meal });
+  const m = { id: mkid(), ...meal };
+  state.meals[key].push(m);
   emit();
+  cloudSync("meal.add", { date: key, meal: m });
+  return m;
 }
 export function removeMeal(id) {
   const key = todayKey();
   state.meals[key] = (state.meals[key] || []).filter((m) => m.id !== id);
   emit();
+  cloudSync("meal.remove", { id });
 }
 export function getTodayMeals() {
   return state.meals[todayKey()] || [];
@@ -228,14 +255,18 @@ export function toggleHabit(habitId, dateKey) {
   if (!h) return;
   h.checks[dateKey] = !h.checks[dateKey];
   emit();
+  cloudSync("habitcheck", { habitId, date: dateKey, on: !!h.checks[dateKey] });
 }
 export function addHabit({ name, icon, color }) {
-  state.habits.push({ id: mkid(), name, icon, color, checks: {} });
+  const h = { id: mkid(), name, icon, color, checks: {} };
+  state.habits.push(h);
   emit();
+  cloudSync("habit.add", { habit: h, order: state.habits.length - 1 });
 }
 export function removeHabit(id) {
   state.habits = state.habits.filter((h) => h.id !== id);
   emit();
+  cloudSync("habit.remove", { id });
 }
 
 // Current streak = consecutive completed days ending today (or yesterday if today not done).
@@ -254,18 +285,22 @@ export function habitStreak(habit) {
 export function updateGoals(patch) {
   state.goals = { ...state.goals, ...patch };
   emit();
+  syncProfile();
 }
 export function updateProfile(patch) {
   state.profile = { ...state.profile, ...patch };
   emit();
+  syncProfile();
 }
 export function updateSettings(patch) {
   state.settings = { ...state.settings, ...patch };
   emit();
+  syncProfile();
 }
 export function addPoints(n) {
   state.points += n;
   emit();
+  syncProfile();
 }
 
 // ---- Cosmetics (the leaf sink) ----
@@ -283,14 +318,17 @@ export function unlockCosmetic(id, cost) {
   state.cosmetics.unlocked.push(id);
   state.cosmetics.equipped = id;
   emit();
+  syncProfile();
   return true;
 }
 export function equipCosmetic(id) {
   state.cosmetics.equipped = id; // null clears
   emit();
+  syncProfile();
 }
 
 export function resetAll() {
   state = seed();
   emit();
+  cloudReset(state);
 }

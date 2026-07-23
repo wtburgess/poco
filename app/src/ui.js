@@ -21,100 +21,142 @@ export function pocoSvg(size = 48, opts = {}) {
   const accessory = opts.accessory !== undefined ? opts.accessory : getEquipped();
   const alive = opts.alive ? "poco-alive" : "";
   return `<svg class="poco ${alive}" viewBox="0 0 100 100" width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg" aria-label="Poco the sloth, feeling ${mood}">
-    <!-- shaggy head tufts -->
-    <circle cx="33" cy="21" r="9" fill="${B_GREEN}" stroke="${B_INK}" stroke-width="3.5"/>
-    <circle cx="50" cy="15" r="10" fill="${B_GREEN}" stroke="${B_INK}" stroke-width="3.5"/>
-    <circle cx="67" cy="21" r="9" fill="${B_GREEN}" stroke="${B_INK}" stroke-width="3.5"/>
-    <!-- green head -->
-    <circle cx="50" cy="53" r="40" fill="${B_GREEN}" stroke="${B_INK}" stroke-width="4"/>
+    <!-- shaggy olive fur -->
+    <path d="${FUR}" fill="${B_GREEN}" stroke="${B_INK}" stroke-width="3.5" stroke-linejoin="round"/>
     <!-- cream face mask -->
-    <path d="M25 44 Q50 32 75 44 Q83 58 74 73 Q64 87 50 87 Q36 87 26 73 Q17 58 25 44 Z" fill="${B_CREAM}" stroke="${B_INK}" stroke-width="2.5"/>
+    <path d="M26 46 Q26 33 42 33 Q50 33 58 33 Q74 33 74 46 Q77 57 71 67 Q63 83 50 83 Q37 83 29 67 Q23 57 26 46 Z" fill="${B_CREAM}" stroke="${B_INK}" stroke-width="2.5"/>
     ${brow(mood)}
-    <!-- asymmetric dark eye patches -->
-    <ellipse cx="37" cy="52" rx="13" ry="16" fill="${B_PATCH}" transform="rotate(-11 37 52)"/>
-    <ellipse cx="63" cy="52" rx="11" ry="14.5" fill="${B_PATCH}" transform="rotate(13 63 52)"/>
+    <!-- olive eye patches -->
+    <circle cx="39" cy="50" r="11" fill="${B_GREEN_D}" stroke="${B_INK}" stroke-width="2"/>
+    <circle cx="62" cy="49" r="11.5" fill="${B_GREEN_D}" stroke="${B_INK}" stroke-width="2"/>
     <g class="poco-eyes">${eyes(mood)}</g>
-    <path d="M44 62 Q50 57 56 62 Q54 69 50 69 Q46 69 44 62 Z" fill="${B_INK}"/>
+    <!-- big friendly nose -->
+    <ellipse cx="50" cy="60" rx="7.6" ry="5.6" fill="${B_NOSE}"/>
+    <ellipse cx="47.4" cy="58" rx="1.7" ry="1.1" fill="#fff" opacity="0.35"/>
     ${mouth(mood)}
     ${extras(mood)}
-    <path d="M16 38 Q9 27 19 23" fill="none" stroke="#3c6626" stroke-width="4" stroke-linecap="round"/>
-    <path d="M17 27 Q23 23 25 29 Q19 31 17 27 Z" fill="#bef1a0" stroke="#3c6626" stroke-width="2"/>
+    <!-- signature leaf sprig -->
+    <path d="M15 34 Q7 24 18 20" fill="none" stroke="#3c6626" stroke-width="4" stroke-linecap="round"/>
+    <path d="M15 24 Q21 19 24 26 Q18 28 15 24 Z" fill="#bef1a0" stroke="#3c6626" stroke-width="2"/>
     ${accessorySvg(accessory)}
   </svg>`;
 }
 
-// Poco's palette.
-const B_INK = "#3d2817";
-const B_GREEN = "#6f9a4d";
-const B_CREAM = "#efe6c8";
-const B_PATCH = "#4a3320";
-const B_TONGUE = "#e06a8b";
+// Illustrated PNG mascot (/poco.png) for the static logo / avatar / hero spots,
+// with the inline SVG as an automatic fallback until the image file is added.
+export function pocoImg(size = 48, cls = "") {
+  return `<img src="/poco.png" alt="Poco" width="${size}" height="${size}" class="${cls}" decoding="async" style="width:${size}px;height:${size}px;object-fit:contain;display:block" onerror="window.__pocoFallback&&window.__pocoFallback(this,${size})">`;
+}
+if (typeof window !== "undefined") {
+  window.__pocoFallback = (imgEl, s) => {
+    const wrap = document.createElement("div");
+    wrap.innerHTML = pocoSvg(s);
+    const el = wrap.firstElementChild;
+    if (el) imgEl.replaceWith(el);
+  };
+}
 
-function eyeball(cx, cy, r, px, py, pr) {
-  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#fff" stroke="${B_INK}" stroke-width="1.5"/>` +
-    `<circle cx="${cx + px}" cy="${cy + py}" r="${pr}" fill="${B_INK}"/>` +
-    `<circle cx="${cx + px - 1}" cy="${cy + py - 1}" r="${pr / 3}" fill="#fff"/>`;
+// Poco's palette — muted olive fur, cream face, warm brown ink.
+const B_INK = "#43301e";
+const B_GREEN = "#8f9161";
+const B_GREEN_D = "#787a4c";
+const B_CREAM = "#f1ecd6";
+const B_NOSE = "#5c4433";
+const B_IRIS = "#5a3f28";
+const B_TONGUE = "#e07f92";
+
+// Shaggy, spiky fur silhouette — generated once, deterministic so it never jitters.
+const FUR = (() => {
+  const cx = 50, cy = 55, N = 26;
+  const jitter = [0, 1.5, -1, 1, 0, 2, -1.5, 0.5, 1, -1, 0, 1.5, -1, 0.5, 1, -1.5, 0, 1, -1, 1.5, 0, -1, 1, 0, -1.5, 1];
+  let d = "";
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+    const top = Math.max(0, Math.cos(a)); // shaggier at the top
+    const r = (i % 2 === 0 ? 46 : 40) + top * 6 + jitter[i];
+    d += (i === 0 ? "M" : "L") + (cx + Math.cos(a) * r).toFixed(1) + " " + (cy + Math.sin(a) * r).toFixed(1);
+  }
+  return d + "Z";
+})();
+
+// A cream eyeball with a brown iris + glint. ix/iy nudge the gaze.
+function openEye(cx, cy, r, ix, iy, ir) {
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${B_CREAM}" stroke="${B_INK}" stroke-width="1.5"/>`
+    + `<circle cx="${cx + ix}" cy="${cy + iy}" r="${ir}" fill="${B_IRIS}"/>`
+    + `<circle cx="${cx + ix - 1.3}" cy="${cy + iy - 1.3}" r="${(ir * 0.34).toFixed(2)}" fill="#fff"/>`;
 }
-function heartEye(cx, cy) {
-  return `<path d="M${cx} ${cy + 4} C ${cx - 6} ${cy - 2}, ${cx - 7} ${cy - 6}, ${cx - 3.5} ${cy - 6} C ${cx - 1} ${cy - 6}, ${cx} ${cy - 4}, ${cx} ${cy - 3} C ${cx} ${cy - 4}, ${cx + 1} ${cy - 6}, ${cx + 3.5} ${cy - 6} C ${cx + 7} ${cy - 6}, ${cx + 6} ${cy - 2}, ${cx} ${cy + 4} Z" fill="#ff5d8f"/>`;
+function heartOnEye(cx, cy, r) {
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${B_CREAM}" stroke="${B_INK}" stroke-width="1.5"/>`
+    + `<path d="M${cx} ${cy + 3.4} C ${cx - 5} ${cy - 1}, ${cx - 5.4} ${cy - 5}, ${cx - 2.5} ${cy - 5} C ${cx - 0.6} ${cy - 5}, ${cx} ${cy - 3}, ${cx} ${cy - 2.4} C ${cx} ${cy - 3}, ${cx + 0.6} ${cy - 5}, ${cx + 2.5} ${cy - 5} C ${cx + 5.4} ${cy - 5}, ${cx + 5} ${cy - 1}, ${cx} ${cy + 3.4} Z" fill="#ff5d8f"/>`;
 }
+function closedArc(cx, cy, r, down) {
+  const d = down ? `M${cx - r} ${cy - 1} Q${cx} ${cy + r * 0.7} ${cx + r} ${cy - 1}` : `M${cx - r} ${cy + 1} Q${cx} ${cy - r * 0.7} ${cx + r} ${cy + 1}`;
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${B_CREAM}" stroke="${B_INK}" stroke-width="1.5"/><path d="${d}" fill="none" stroke="${B_INK}" stroke-width="2.5" stroke-linecap="round"/>`;
+}
+function xEye(cx, cy, r) {
+  const o = r * 0.55;
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${B_CREAM}" stroke="${B_INK}" stroke-width="1.5"/><path d="M${cx - o} ${cy - o} L${cx + o} ${cy + o} M${cx + o} ${cy - o} L${cx - o} ${cy + o}" stroke="${B_INK}" stroke-width="2.5" stroke-linecap="round"/>`;
+}
+function halfLid(cx, cy, r) {
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${B_CREAM}" stroke="${B_INK}" stroke-width="1.5"/><circle cx="${cx}" cy="${cy + 1.5}" r="3" fill="${B_IRIS}"/><path d="M${cx - r - 0.5} ${cy - 1.5} Q${cx} ${cy - 5} ${cx + r + 0.5} ${cy - 1.5} L${cx + r} ${cy} L${cx - r} ${cy} Z" fill="${B_GREEN_D}" stroke="${B_INK}" stroke-width="1.5" stroke-linejoin="round"/>`;
+}
+
 function eyes(mood) {
   switch (mood) {
-    // Symmetric & bright when he's up.
-    case "happy":     return eyeball(37, 52, 7, 0, -1, 3) + eyeball(63, 51, 7, 0, -1, 3);
-    case "ecstatic":  return eyeball(37, 51, 8, 0, -1, 3.6) + eyeball(63, 50, 8, 0, -1, 3.6);
-    case "love":      return heartEye(37, 52) + heartEye(63, 51);
-    case "sad":       return eyeball(37, 55, 6, 0, -1, 3) + eyeball(63, 54, 6, 0, -1, 3);
-    case "panic":     return eyeball(37, 52, 8.5, -1, 0, 1.6) + eyeball(63, 51, 8.5, 1, 0, 1.6);
-    case "sleepy":    return `<path d="M30 55 Q37 61 44 55" stroke="${B_INK}" stroke-width="3.5" fill="none" stroke-linecap="round"/><path d="M56 54 Q63 60 70 54" stroke="${B_INK}" stroke-width="3.5" fill="none" stroke-linecap="round"/>`;
-    case "zen":       return `<path d="M30 56 Q37 50 44 56" stroke="${B_INK}" stroke-width="3.5" fill="none" stroke-linecap="round"/><path d="M56 55 Q63 49 70 55" stroke="${B_INK}" stroke-width="3.5" fill="none" stroke-linecap="round"/>`;
-    case "dead":      return `<path d="M32 48 L42 58 M42 48 L32 58" stroke="${B_INK}" stroke-width="3" stroke-linecap="round"/><path d="M58 47 L68 57 M68 47 L58 57" stroke="${B_INK}" stroke-width="3" stroke-linecap="round"/>`;
-    case "suspicious":return eyeball(37, 52, 8, 2, -1, 3.4) + `<path d="M56 52 Q63 49 70 52" stroke="${B_INK}" stroke-width="4" fill="none" stroke-linecap="round"/>`;
-    // Default: the signature wonky, cross-eyed googly stare.
-    default:          return eyeball(37, 53, 7.5, -2, 2, 3) + eyeball(63, 51, 5.5, 2, -2, 2.6);
+    case "happy":     return openEye(39, 50, 7.6, 0, -1.5, 3.6) + openEye(62, 49, 8, 0, -1.5, 3.8);
+    case "ecstatic":  return openEye(39, 50, 7.6, 0, -2, 3.8) + openEye(62, 49, 8, 0, -2, 4);
+    case "love":      return heartOnEye(39, 50, 7.6) + heartOnEye(62, 49, 8);
+    case "sad":       return openEye(39, 50, 7.6, 0.5, -2, 3) + openEye(62, 49, 8, -0.5, -2, 3.2);
+    case "panic":     return openEye(39, 50, 7.6, 0, 0, 1.6) + openEye(62, 49, 8, 0, 0, 1.6);
+    case "sleepy":    return closedArc(39, 50, 7.6, true) + closedArc(62, 49, 8, true);
+    case "zen":       return closedArc(39, 50, 7.6, false) + closedArc(62, 49, 8, false);
+    case "dead":      return xEye(39, 50, 7.6) + xEye(62, 49, 8);
+    case "suspicious":return openEye(39, 50, 7.6, 1.6, -0.5, 3.4) + halfLid(62, 49, 8);
+    // Default: a warm, slightly cheeky gaze.
+    default:          return openEye(39, 50, 7.6, 1, 1, 3.6) + openEye(62, 49, 8, -1, 1, 3.8);
   }
 }
 function brow(mood) {
-  const s = `fill="none" stroke="${B_INK}" stroke-width="3" stroke-linecap="round"`;
+  const s = `fill="none" stroke="${B_INK}" stroke-width="2.5" stroke-linecap="round"`;
   switch (mood) {
-    case "sad":       return `<path d="M30 41 Q38 37 45 40" ${s}/><path d="M55 40 Q62 37 70 41" ${s}/>`;
-    case "suspicious":return `<path d="M29 39 Q37 35 46 40" ${s}/><path d="M55 44 Q63 43 71 44" ${s}/>`;
+    case "sad":       return `<path d="M31 39 Q38 35 45 39" ${s}/><path d="M55 38 Q62 34 70 38" ${s}/>`;
+    case "suspicious":return `<path d="M31 37 Q38 33 46 38" ${s}/><path d="M55 42 Q62 41 71 42" ${s}/>`;
     case "panic":
-    case "ecstatic":  return `<path d="M29 38 Q40 33 47 37" ${s}/><path d="M53 37 Q60 33 71 38" ${s}/>`;
+    case "ecstatic":  return `<path d="M31 36 Q40 31 47 35" ${s}/><path d="M53 35 Q60 31 71 36" ${s}/>`;
     default:          return "";
   }
 }
 function mouth(mood) {
-  const stroke = `fill="none" stroke="${B_INK}" stroke-width="3.5" stroke-linecap="round"`;
-  // A little tongue lolling out the side — Poco's signature goof.
-  const tongue = `<path d="M56 78 q5 5 8 0 q0 -5 -5 -4 z" fill="${B_TONGUE}" stroke="${B_INK}" stroke-width="1.5" stroke-linejoin="round"/>`;
+  const st = `fill="none" stroke="${B_INK}" stroke-width="3" stroke-linecap="round"`;
+  // A bit of tongue lolling out the side — Poco's signature goof.
+  const tongue = `<path d="M56 70 q5 5 8 1 q0 -5 -5 -4 z" fill="${B_TONGUE}" stroke="${B_INK}" stroke-width="1.3" stroke-linejoin="round"/>`;
   switch (mood) {
-    case "happy":     return `<path d="M38 72 Q50 83 62 72" ${stroke}/>${tongue}`;
-    case "love":      return `<path d="M39 71 Q50 86 61 71 Z" fill="#7a3b2e" stroke="${B_INK}" stroke-width="2"/><path d="M45 79 Q50 85 55 79 Z" fill="${B_TONGUE}"/>`;
-    case "ecstatic":  return `<path d="M37 70 Q50 92 63 70 Z" fill="#7a3b2e" stroke="${B_INK}" stroke-width="2.5"/><path d="M45 81 Q50 88 55 81 Z" fill="${B_TONGUE}"/>`;
-    case "sleepy":    return `<ellipse cx="50" cy="77" rx="3.5" ry="5" fill="#7a3b2e"/>`;
-    case "dead":      return `<path d="M42 77 q4 -3 8 0 q4 3 8 0" ${stroke}/>`;
-    case "sad":       return `<path d="M42 79 Q50 72 58 79" ${stroke}/>`;
-    case "panic":     return `<path d="M42 78 q3 -4 6 0 q3 4 6 0" ${stroke}/>`;
-    case "zen":       return `<path d="M43 75 Q50 79 57 75" ${stroke}/>`;
-    case "suspicious":return `<path d="M43 76 Q50 74 57 76" ${stroke}/>${tongue}`;
-    // Default: big goofy grin + side tongue.
-    default:          return `<path d="M38 72 Q50 82 62 72" ${stroke}/>${tongue}`;
+    case "happy":     return `<path d="M35 64 Q50 79 65 64" ${st}/>${tongue}`;
+    case "love":      return `<path d="M36 64 Q50 80 64 64" fill="#7a3b2e" stroke="${B_INK}" stroke-width="2"/><path d="M44 72 Q50 78 56 72 Z" fill="${B_TONGUE}"/>`;
+    case "ecstatic":  return `<path d="M35 63 Q50 85 65 63 Z" fill="#7a3b2e" stroke="${B_INK}" stroke-width="2.5"/><path d="M44 74 Q50 81 56 74 Z" fill="${B_TONGUE}"/>`;
+    case "sleepy":    return `<ellipse cx="50" cy="70" rx="3.5" ry="4.5" fill="#7a3b2e"/>`;
+    case "dead":      return `<path d="M40 70 q3.5 -3 7 0 q3.5 3 7 0" ${st}/>`;
+    case "sad":       return `<path d="M40 72 Q50 65 60 72" ${st}/>`;
+    case "panic":     return `<path d="M41 71 q3 -4 6 0 q3 4 6 0" ${st}/>`;
+    case "zen":       return `<path d="M42 68 Q50 72 58 68" ${st}/>`;
+    case "suspicious":return `<path d="M40 68 Q50 67 60 68" ${st}/>${tongue}`;
+    // Default: wide friendly smile + a bit of tongue.
+    default:          return `<path d="M36 65 Q50 76 64 65" ${st}/>${tongue}`;
   }
 }
 function extras(mood) {
   switch (mood) {
-    case "sleepy":    return `<text x="70" y="30" font-size="13" fill="#3c6626" font-family="Nunito Sans, sans-serif" font-weight="900">z</text><text x="78" y="22" font-size="9" fill="#3c6626" font-family="Nunito Sans, sans-serif" font-weight="900">z</text>`;
-    case "panic":     return `<path d="M78 34 q3.5 6 0 10 q-3.5 -4 0 -10 Z" fill="#7ec8e3" stroke="#28180b" stroke-width="1"/>`;
-    case "sad":       return `<path d="M34 62 q2 5 0 8 q-2 -3 0 -8 Z" fill="#7ec8e3"/>`;
-    case "dead":      return `<path d="M31 63 Q37 66 43 63" fill="none" stroke="#8a6b57" stroke-width="1.5"/><path d="M57 63 Q63 66 69 63" fill="none" stroke="#8a6b57" stroke-width="1.5"/>`;
-    case "ecstatic":  return star(84, 28) + star(15, 66) + star(80, 74);
-    case "love":      return heartMini(80, 26) + heartMini(18, 30);
+    case "sleepy":    return `<text x="72" y="28" font-size="13" fill="#3c6626" font-family="Nunito Sans, sans-serif" font-weight="900">z</text><text x="80" y="20" font-size="9" fill="#3c6626" font-family="Nunito Sans, sans-serif" font-weight="900">z</text>`;
+    case "panic":     return `<path d="M79 36 q3.5 6 0 10 q-3.5 -4 0 -10 Z" fill="#7ec8e3" stroke="${B_INK}" stroke-width="1"/>`;
+    case "sad":       return `<path d="M35 57 q2 5 0 8 q-2 -3 0 -8 Z" fill="#7ec8e3"/>`;
+    case "dead":      return `<path d="M32 60 Q39 63 46 60" fill="none" stroke="#8a6b57" stroke-width="1.5"/><path d="M56 59 Q63 62 70 59" fill="none" stroke="#8a6b57" stroke-width="1.5"/>`;
+    case "ecstatic":  return star(85, 26) + star(14, 60) + star(82, 70);
+    case "love":      return heartMini(83, 24) + heartMini(15, 30);
     default:          return "";
   }
 }
 function star(x, y) {
-  return `<path d="M${x} ${y - 4} L${x + 1.2} ${y - 1.2} L${x + 4} ${y} L${x + 1.2} ${y + 1.2} L${x} ${y + 4} L${x - 1.2} ${y + 1.2} L${x - 4} ${y} L${x - 1.2} ${y - 1.2} Z" fill="#ffd166" stroke="#28180b" stroke-width="0.6"/>`;
+  return `<path d="M${x} ${y - 4} L${x + 1.2} ${y - 1.2} L${x + 4} ${y} L${x + 1.2} ${y + 1.2} L${x} ${y + 4} L${x - 1.2} ${y + 1.2} L${x - 4} ${y} L${x - 1.2} ${y - 1.2} Z" fill="#ffd166" stroke="${B_INK}" stroke-width="0.6"/>`;
 }
 function heartMini(x, y) {
   return `<path d="M${x} ${y + 3} C ${x - 4} ${y - 1}, ${x - 5} ${y - 4}, ${x - 2.5} ${y - 4} C ${x - 1} ${y - 4}, ${x} ${y - 2.5} , ${x} ${y - 2} C ${x} ${y - 2.5}, ${x + 1} ${y - 4}, ${x + 2.5} ${y - 4} C ${x + 5} ${y - 4}, ${x + 4} ${y - 1}, ${x} ${y + 3} Z" fill="#ff5d8f"/>`;
@@ -128,9 +170,9 @@ function accessorySvg(id) {
     case "shades":
       return `<rect x="23" y="47" width="23" height="13" rx="5" fill="#141414" stroke="#28180b" stroke-width="2"/><rect x="54" y="47" width="23" height="13" rx="5" fill="#141414" stroke="#28180b" stroke-width="2"/><path d="M46 50 Q50 47 54 50" fill="none" stroke="#141414" stroke-width="3"/><path d="M27 50 l4 3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><path d="M58 50 l4 3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>`;
     case "monocle":
-      return `<circle cx="62" cy="55" r="13" fill="none" stroke="#ffd166" stroke-width="2.5"/><path d="M62 68 Q59 80 53 86" fill="none" stroke="#28180b" stroke-width="1.5"/>`;
+      return `<circle cx="62" cy="49" r="13" fill="none" stroke="#ffd166" stroke-width="2.5"/><path d="M62 62 Q59 76 53 84" fill="none" stroke="#28180b" stroke-width="1.5"/>`;
     case "mustache":
-      return `<path d="M50 70 Q42 68 38 72 Q43 74 50 71 Q57 74 62 72 Q58 68 50 70 Z" fill="#4a3420" stroke="#28180b" stroke-width="1"/>`;
+      return `<path d="M50 65 Q42 63 38 67 Q43 69 50 66 Q57 69 62 67 Q58 63 50 65 Z" fill="#4a3420" stroke="#28180b" stroke-width="1"/>`;
     case "flower_crown":
       return [30, 42, 54, 66].map((x, i) => flower(x, 24 - (i % 2) * 3)).join("");
     case "crown":
@@ -172,8 +214,8 @@ export function topBar() {
   <header class="w-full sticky top-0 z-40 bg-background border-b-border-width border-on-secondary-fixed shadow-[var(--shadow-soft)]">
     <div class="flex items-center justify-between px-container-padding py-unit w-full max-w-3xl md:max-w-5xl mx-auto md:pl-72">
       <div class="flex items-center gap-3">
-        <div class="w-11 h-11 rounded-full chunky-border overflow-hidden bg-primary-fixed flex items-center justify-center -rotate-3">
-          ${pocoSvg(46, { alive: true })}
+        <div class="w-11 h-11 rounded-full chunky-border overflow-hidden bg-primary-fixed flex items-center justify-center">
+          ${pocoImg(44)}
         </div>
         <h1 class="font-display-sm text-display-sm font-black text-primary tracking-tight">Poco</h1>
       </div>
@@ -189,7 +231,7 @@ export function sideNav(active) {
   return `
   <nav class="hidden md:flex flex-col fixed left-0 top-0 bottom-0 w-64 bg-surface-container border-r-border-width border-on-secondary-fixed px-4 py-6 gap-2 z-30">
     <div class="flex items-center gap-2 px-3 mb-6">
-      <div class="w-12 h-12 rounded-full chunky-border overflow-hidden bg-primary-fixed flex items-center justify-center -rotate-3">${pocoSvg(50, { alive: true })}</div>
+      <div class="w-12 h-12 rounded-full chunky-border overflow-hidden bg-primary-fixed flex items-center justify-center">${pocoImg(48)}</div>
       <span class="font-display-sm text-display-sm font-black text-primary tracking-tight">Poco</span>
     </div>
     ${NAV.map((n) => navItemDesktop(n, active)).join("")}
