@@ -211,16 +211,16 @@ function navItemDesktop(n, active) {
 
 export function bottomNav(active) {
   return `
-  <nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 pb-6 pt-2 bg-surface-container rounded-t-lg border-t-border-width border-on-secondary-fixed shadow-[var(--shadow-soft-up)]">
+  <nav class="md:hidden fixed bottom-0 inset-x-0 z-50 flex items-stretch px-1 pt-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] bg-surface-container border-t-border-width border-on-secondary-fixed shadow-[var(--shadow-soft-up)]">
     ${NAV.map((n) => {
       const on = n.id === active;
-      return `<a href="#/${n.id}" class="flex flex-col items-center justify-center px-3 py-2 transition-all duration-150 active:scale-95 active:translate-y-1 ${
-        on
-          ? "bg-primary-container text-on-primary-container rounded-lg border-border-width border-on-secondary-fixed"
-          : "text-on-surface-variant"
-      }">
-        ${icon(n.icon, on ? "fill-icon" : "")}
-        <span class="font-label-bold text-[10px] mt-0.5">${n.label}</span>
+      return `<a href="#/${n.id}" aria-label="${n.label}" aria-current="${on ? "page" : "false"}" class="flex-1 min-w-0 flex flex-col items-center gap-1 py-0.5 transition-transform active:scale-90">
+        <span class="flex items-center justify-center w-14 h-8 rounded-full transition-colors ${
+          on
+            ? "bg-primary-container text-on-primary-container border-border-width border-on-secondary-fixed"
+            : "text-on-surface-variant"
+        }">${icon(n.icon, on ? "fill-icon" : "")}</span>
+        <span class="font-label-bold text-[11px] leading-none truncate max-w-full ${on ? "text-primary font-black" : "text-on-surface-variant"}">${n.label}</span>
       </a>`;
     }).join("")}
   </nav>`;

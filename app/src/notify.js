@@ -32,7 +32,9 @@ export function fireNudge(force = false) {
   try {
     const n = new Notification("Poco 🦥", {
       body: nudgeText(checkinStreak()),
-      icon: pocoIconUri(),
+      icon: "/icon-192.png",
+      badge: "/badge.svg",
+      requireInteraction: true,
       tag: "poco-nudge",
     });
     n.onclick = () => {

@@ -11,10 +11,12 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: "/icon.svg",
-      badge: "/icon.svg",
+      icon: "/icon-192.png",
+      badge: "/badge.svg",
       tag: "poco-nudge",
       renotify: true,
+      requireInteraction: true,
+      vibrate: [80, 40, 80],
       data: { url: data.url || "/" },
     })
   );

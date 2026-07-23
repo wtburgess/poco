@@ -36,6 +36,7 @@ export async function enableReminders(time) {
     if (p !== "granted") throw new Error("denied");
     updateSettings({ reminderEnabled: true, reminderTime: time, lastNotified: null });
     initNudges();
+    welcomeNotification(); // show a real one now so they see what it looks like
     return "local";
   }
 
@@ -61,7 +62,26 @@ export async function enableReminders(time) {
     }),
   });
   updateSettings({ reminderEnabled: true, reminderTime: time });
+  try {
+    await reg.showNotification("Poco nudges are on 🌿", {
+      body: "This is what your morning check-in reminder will look like.",
+      icon: "/icon-192.png",
+      badge: "/badge.svg",
+      requireInteraction: true,
+      tag: "poco-nudge",
+    });
+  } catch (_e) {}
   return "push";
+}
+
+// A real OS notification shown right after enabling (in-tab fallback path).
+function welcomeNotification() {
+  try {
+    new Notification("Poco nudges are on 🌿", {
+      body: "I'll remind you here while the app's open.",
+      icon: "/icon-192.png",
+    });
+  } catch (_e) {}
 }
 
 export async function disableReminders() {
