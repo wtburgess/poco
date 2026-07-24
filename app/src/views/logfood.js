@@ -6,7 +6,7 @@
 import { addMeal, addPoints } from "../store.js";
 import { icon, pocoImg, openModal, closeModal, toast } from "../ui.js";
 import {
-  aiStatus, analyzeFood, resizeImage, speechSupported, dictate,
+  analyzeFood, resizeImage, speechSupported, dictate,
 } from "../foodai.js";
 
 const MEAL_ICONS = ["restaurant", "breakfast_dining", "lunch_dining", "dinner_dining", "local_cafe", "bakery_dining", "nutrition"];
@@ -30,47 +30,39 @@ function setStage(ctx, html, wire) {
 }
 
 // ---- Stage 1: how do you want to log? ----
+// The photo/describe options always show. If the AI backend isn't set up (or
+// you're on localhost with no /api), tapping through lands on a clear message
+// with a manual fallback — rather than the buttons silently disappearing.
 function renderChoose(ctx) {
-  aiStatus().then(({ configured }) => {
-    ctx.aiOn = configured;
-    const html = `
-      <div class="flex items-center gap-3 mb-4">
-        <div class="w-11 h-11 flex-shrink-0 bg-secondary-container rounded-full chunky-border flex items-center justify-center overflow-hidden">${pocoImg(42)}</div>
-        <div>
-          <h3 class="font-headline-md text-headline-md text-on-surface">Log a bite</h3>
-          <p class="font-body-md text-sm text-on-surface-variant">${configured ? "Snap it, say it, or type it." : "Type it in below."}</p>
-        </div>
+  const html = `
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-11 h-11 flex-shrink-0 bg-secondary-container rounded-full chunky-border flex items-center justify-center overflow-hidden">${pocoImg(42)}</div>
+      <div>
+        <h3 class="font-headline-md text-headline-md text-on-surface">Log a bite</h3>
+        <p class="font-body-md text-sm text-on-surface-variant">Snap it, say it, or type it.</p>
       </div>
-      ${configured ? `
-        <div class="flex flex-col gap-3 mb-3">
-          <button data-photo class="chunky-button w-full bg-primary text-on-primary chunky-border card-shadow rounded-[16px] py-4 flex items-center justify-center gap-2">
-            ${icon("photo_camera", "fill-icon")}<span class="font-label-bold text-label-bold">Snap a photo</span>
-          </button>
-          <button data-describe class="chunky-button w-full bg-surface-container chunky-border card-shadow rounded-[16px] py-4 flex items-center justify-center gap-2 hover:bg-secondary-container">
-            ${icon("mic", "text-primary")}<span class="font-label-bold text-label-bold text-on-surface">Describe it</span>
-          </button>
-        </div>
-        <input data-file type="file" accept="image/*" capture="environment" class="hidden" />
-        <button data-manual class="w-full text-center font-label-bold text-sm text-on-surface-variant py-2 underline decoration-dashed underline-offset-4">or enter it manually</button>
-      ` : `
-        <button data-manual class="chunky-button w-full bg-primary text-on-primary chunky-border card-shadow rounded-[16px] py-4 flex items-center justify-center gap-2">
-          ${icon("edit")}<span class="font-label-bold text-label-bold">Enter a bite</span>
-        </button>
-      `}
-      <button data-cancel class="w-full text-center font-label-bold text-sm text-on-surface-variant py-2 mt-1">Cancel</button>
-    `;
-    setStage(ctx, html, (el) => {
-      el.querySelector("[data-cancel]").addEventListener("click", closeModal);
-      el.querySelector("[data-manual]").addEventListener("click", () => renderApproval(ctx, blankMeal(), { source: "manual" }));
-      if (configured) {
-        const file = el.querySelector("[data-file]");
-        el.querySelector("[data-photo]").addEventListener("click", () => file.click());
-        file.addEventListener("change", () => {
-          if (file.files && file.files[0]) handlePhoto(ctx, file.files[0]);
-        });
-        el.querySelector("[data-describe]").addEventListener("click", () => renderDescribe(ctx));
-      }
+    </div>
+    <div class="flex flex-col gap-3 mb-3">
+      <button data-photo class="chunky-button w-full bg-primary text-on-primary chunky-border card-shadow rounded-[16px] py-4 flex items-center justify-center gap-2">
+        ${icon("photo_camera", "fill-icon")}<span class="font-label-bold text-label-bold">Snap a photo</span>
+      </button>
+      <button data-describe class="chunky-button w-full bg-surface-container chunky-border card-shadow rounded-[16px] py-4 flex items-center justify-center gap-2 hover:bg-secondary-container">
+        ${icon("mic", "text-primary")}<span class="font-label-bold text-label-bold text-on-surface">Describe it</span>
+      </button>
+    </div>
+    <input data-file type="file" accept="image/*" capture="environment" class="hidden" />
+    <button data-manual class="w-full text-center font-label-bold text-sm text-on-surface-variant py-2 underline decoration-dashed underline-offset-4">or enter it manually</button>
+    <button data-cancel class="w-full text-center font-label-bold text-sm text-on-surface-variant py-2 mt-1">Cancel</button>
+  `;
+  setStage(ctx, html, (el) => {
+    el.querySelector("[data-cancel]").addEventListener("click", closeModal);
+    el.querySelector("[data-manual]").addEventListener("click", () => renderApproval(ctx, blankMeal(), { source: "manual" }));
+    const file = el.querySelector("[data-file]");
+    el.querySelector("[data-photo]").addEventListener("click", () => file.click());
+    file.addEventListener("change", () => {
+      if (file.files && file.files[0]) handlePhoto(ctx, file.files[0]);
     });
+    el.querySelector("[data-describe]").addEventListener("click", () => renderDescribe(ctx));
   });
 }
 
