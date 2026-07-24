@@ -12,8 +12,12 @@
 // Gemini Flash is fast, but give the function a little headroom anyway.
 export const config = { maxDuration: 30 };
 
-// Free-tier multimodal model; override with GEMINI_MODEL if needed.
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+// Free-tier multimodal models. We try them in order and fall through to the
+// next one on a quota (429) or not-found (404) error, since free quota is
+// granted per-model — if one is tapped out, another often still works.
+// GEMINI_MODEL (if set) is tried first.
+const PREFERRED = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const MODELS = [...new Set([PREFERRED, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"])];
 
 // Material Symbol names Poco already ships — keep the model on-palette.
 const ICONS = [
@@ -97,54 +101,63 @@ export default async function handler(req, res) {
         : "Estimate the nutrition for the food in this image.",
     });
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
-    const r = await fetch(url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-goog-api-key": process.env.GEMINI_API_KEY,
+    const payload = JSON.stringify({
+      system_instruction: { parts: [{ text: SYSTEM }] },
+      contents: [{ role: "user", parts }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: SCHEMA,
       },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM }] },
-        contents: [{ role: "user", parts }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: SCHEMA,
-        },
-      }),
     });
 
-    if (!r.ok) {
-      let msg = `Analysis failed (${r.status})`;
+    let lastStatus = 502;
+    let lastMsg = "Analysis failed";
+    for (const model of MODELS) {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": process.env.GEMINI_API_KEY,
+        },
+        body: payload,
+      });
+
+      if (r.ok) {
+        const data = await r.json();
+        // Safety block (no candidate) → let the client fall back to manual.
+        if (data.promptFeedback && data.promptFeedback.blockReason) {
+          res.status(422).json({ error: "Couldn't analyze that one — try a manual entry." });
+          return;
+        }
+        const cand = data.candidates && data.candidates[0];
+        const partWithText = cand && cand.content && cand.content.parts
+          ? cand.content.parts.find((p) => typeof p.text === "string")
+          : null;
+        if (!partWithText) {
+          res.status(502).json({ error: "empty response from the model" });
+          return;
+        }
+        res.status(200).json(JSON.parse(partWithText.text));
+        return;
+      }
+
+      lastStatus = r.status;
+      lastMsg = `Analysis failed (${r.status})`;
       try {
         const j = await r.json();
-        if (j && j.error && j.error.message) msg = j.error.message;
+        if (j && j.error && j.error.message) lastMsg = j.error.message;
       } catch { /* keep default */ }
-      // 429 (rate limit) and 4xx from Gemini are usually transient/config — let
-      // the client show the message and offer manual entry.
-      res.status(502).json({ error: msg });
-      return;
+
+      // Only try the next model on quota (429) or model-not-found (404).
+      // Anything else (auth, bad request) won't be fixed by switching models.
+      if (r.status !== 429 && r.status !== 404) break;
     }
 
-    const data = await r.json();
-
-    // Safety block (no candidate) → let the client fall back to manual.
-    if (data.promptFeedback && data.promptFeedback.blockReason) {
-      res.status(422).json({ error: "Couldn't analyze that one — try a manual entry." });
+    if (lastStatus === 429) {
+      res.status(429).json({ error: "Gemini's free quota is maxed right now — give it a minute and try again, or add a bite manually." });
       return;
     }
-
-    const cand = data.candidates && data.candidates[0];
-    const partWithText = cand && cand.content && cand.content.parts
-      ? cand.content.parts.find((p) => typeof p.text === "string")
-      : null;
-    if (!partWithText) {
-      res.status(502).json({ error: "empty response from the model" });
-      return;
-    }
-
-    const parsed = JSON.parse(partWithText.text);
-    res.status(200).json(parsed);
+    res.status(502).json({ error: lastMsg });
   } catch (e) {
     res.status(500).json({ error: String(e && e.message ? e.message : e) });
   }
