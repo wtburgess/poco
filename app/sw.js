@@ -1,7 +1,47 @@
-// Poco service worker — receives push events and shows the nudge, even when
-// no tab is open. Scope is "/" because it's served from the site root.
-self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
+// Poco service worker — makes the app installable (PWA), serves the shell
+// offline, and receives push events so nudges show even with no tab open.
+// Scope is "/" because it's served from the site root.
+const CACHE = "poco-shell-v1";
+const SHELL = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"];
+
+self.addEventListener("install", (event) => {
+  self.skipWaiting();
+  // Resilient precache: one bad asset shouldn't fail the whole install.
+  event.waitUntil(
+    caches.open(CACHE).then((c) => Promise.allSettled(SHELL.map((u) => c.add(u))))
+  );
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+
+// Network-first for same-origin GETs — keeps deployed updates fresh online,
+// falls back to cache when offline. /api/* is never intercepted (always live).
+// Having a fetch handler is also what lets Android/Chrome offer "Install app".
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  if (request.method !== "GET") return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return; // let font/CDN requests pass through
+  if (url.pathname.startsWith("/api/")) return;     // never cache API calls
+
+  event.respondWith(
+    fetch(request)
+      .then((res) => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(request, copy));
+        }
+        return res;
+      })
+      .catch(() => caches.match(request).then((cached) => cached || caches.match("/")))
+  );
+});
 
 self.addEventListener("push", (event) => {
   let data = { title: "Poco 🦥", body: "Time for your check-in.", url: "/" };

@@ -92,3 +92,10 @@ async function enterApp() {
 window.addEventListener("hashchange", route);
 window.addEventListener("DOMContentLoaded", boot);
 if (document.readyState !== "loading") boot();
+
+// Register the service worker on every load (not just when push is enabled) so
+// the app is installable from the first visit and works offline. Push
+// enablement reuses this same registration later.
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
