@@ -122,10 +122,22 @@ export function renderCheckin(root, { name }) {
       </div>
     </article>
 
-    <!-- One line a day -->
-    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6">
-      <h2 class="font-headline-md text-headline-md text-on-surface mb-4 flex items-center gap-3 lowercase">${hbadge("edit_note")} one line a day</h2>
-      <textarea data-note rows="2" maxlength="280" placeholder="anything worth remembering? (or don't — no pressure.)" class="w-full px-4 py-3 rounded-2xl chunky-border bg-surface-container font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary resize-none">${escNote(c.note)}</textarea>
+    <!-- End of the day: a small wind-down ritual -->
+    <div class="flex items-center gap-3 pt-3 pb-1">
+      <div class="h-px flex-1 bg-outline-variant/40"></div>
+      <span class="font-label-bold text-label-bold text-on-surface-variant flex items-center gap-1">${icon("bedtime", "text-sm text-tertiary-container")} End of the day</span>
+      <div class="h-px flex-1 bg-outline-variant/40"></div>
+    </div>
+
+    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6 flex flex-col gap-6">
+      <div>
+        <h3 class="font-headline-md text-headline-md text-on-surface mb-3 flex items-center gap-3 lowercase">${hbadge("favorite")} grateful for…</h3>
+        <textarea data-gratitude rows="2" maxlength="280" placeholder="one small thing. a snack counts." class="w-full px-4 py-3 rounded-2xl chunky-border bg-surface-container font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary resize-none">${escNote(c.gratitude)}</textarea>
+      </div>
+      <div>
+        <h3 class="font-headline-md text-headline-md text-on-surface mb-3 flex items-center gap-3 lowercase">${hbadge("edit_note")} one line a day</h3>
+        <textarea data-note rows="2" maxlength="280" placeholder="anything worth remembering? (or don't — no pressure.)" class="w-full px-4 py-3 rounded-2xl chunky-border bg-surface-container font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary resize-none">${escNote(c.note)}</textarea>
+      </div>
     </article>
 
     <div class="h-24 md:h-4"></div>
@@ -269,7 +281,10 @@ function wire(root, name) {
     });
   }
 
-  // One line a day — save on blur (not every keystroke).
+  // End of the day — grateful-for + one line a day, saved on blur.
+  root.querySelector("[data-gratitude]")?.addEventListener("change", (e) => {
+    saveCheckin({ gratitude: e.target.value.trim() });
+  });
   root.querySelector("[data-note]")?.addEventListener("change", (e) => {
     saveCheckin({ note: e.target.value.trim() });
   });
