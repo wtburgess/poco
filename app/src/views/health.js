@@ -24,27 +24,27 @@ export function renderHealth(root) {
     </div>
 
     ${statCard({
-      bg: "bg-[#f8ffee]", label: "Movement", value: fmt(avgSteps, 0), unit: "steps avg",
+      bg: "bg-primary-fixed", label: "Movement", value: fmt(avgSteps, 0), unit: "steps avg",
       valueColor: "text-primary", trend: "+12%", trendUp: true, watermark: "directions_run",
-      wmColor: "text-primary", stroke: "#3c6626", leaf: "#bef1a0",
+      wmColor: "text-primary", stroke: "#546346", leaf: "#98a886",
       series: stepsSeries, max: 12000,
     })}
 
     ${statCard({
       bg: "bg-inverse-on-surface", label: "Sleep", value: sleepLabel(avgSleep), unit: "avg",
       valueColor: "text-inverse-surface", trend: "-2%", trendUp: false, watermark: "bedtime",
-      wmColor: "text-inverse-surface", stroke: "#083542", leaf: "#c1e9fa",
+      wmColor: "text-inverse-surface", stroke: "#3f2d1e", leaf: "#c8c7bc",
       series: sleepSeries, max: 10,
     })}
 
     ${statCard({
       bg: "bg-secondary-fixed", label: "Happiness", value: fmt(avgMood, 1), unit: "/ 5 avg",
       valueColor: "text-tertiary", trend: "+0.5", trendUp: true, watermark: "mood",
-      wmColor: "text-tertiary", stroke: "#864f00", leaf: "#ffdcbd",
+      wmColor: "text-tertiary", stroke: "#7c554e", leaf: "#edbbb2",
       series: moodSeries.map((m) => (m == null ? null : m + 1)), max: 5,
     })}
 
-    <div class="mt-2 p-6 bg-[#f2ebd4] chunky-border rounded-xl flex gap-4 items-start shadow-[inset_0px_4px_8px_rgba(112,90,73,0.1)]">
+    <div class="mt-2 p-6 bg-[#ffeadc] chunky-border rounded-xl flex gap-4 items-start shadow-[inset_0px_4px_8px_rgba(112,90,73,0.1)]">
       <div class="w-12 h-12 rounded-full chunky-border overflow-hidden bg-secondary-container flex-shrink-0 flex items-center justify-center">${pocoImg(46)}</div>
       <p class="font-body-lg text-body-lg text-on-secondary-fixed-variant leading-relaxed">${insight}</p>
     </div>

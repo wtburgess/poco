@@ -15,6 +15,11 @@ const MOODS = [
   "sentiment_very_satisfied",
 ];
 
+// Section-heading icon: a chunky dark "sticker" square with the glyph knocked out.
+function hbadge(name) {
+  return `<span class="material-symbols-outlined bg-on-surface text-surface p-2 rounded-xl text-[22px] leading-none">${name}</span>`;
+}
+
 export function renderCheckin(root, { name }) {
   const c = getTodayCheckin();
   const meals = getTodayMeals();
@@ -25,8 +30,8 @@ export function renderCheckin(root, { name }) {
     <!-- Sleep -->
     <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6 relative overflow-hidden">
       <span class="material-symbols-outlined absolute -top-2 -right-2 text-surface-tint opacity-10 text-6xl rotate-45">eco</span>
-      <h2 class="font-label-bold text-label-bold text-on-surface mb-6 flex items-center gap-2">
-        ${icon("bedtime", "text-tertiary-container")} How did you sleep?
+      <h2 class="font-headline-md text-headline-md text-on-surface mb-6 flex items-center gap-3 lowercase">
+        ${hbadge("bedtime")} did you actually sleep?
       </h2>
       <div class="flex flex-col items-center gap-8">
         <div class="flex items-center gap-4">
@@ -53,8 +58,8 @@ export function renderCheckin(root, { name }) {
 
     <!-- Mood -->
     <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6">
-      <h2 class="font-label-bold text-label-bold text-on-surface mb-6 flex items-center gap-2">
-        ${icon("mood", "text-tertiary-container")} How happy are you today?
+      <h2 class="font-headline-md text-headline-md text-on-surface mb-6 flex items-center gap-3 lowercase">
+        ${hbadge("mood")} mental state check
       </h2>
       <div class="flex justify-between items-center" data-mood-row>
         ${MOODS.map((m, i) => moodButton(m, i, c.mood)).join("")}
@@ -74,7 +79,7 @@ export function renderCheckin(root, { name }) {
     <!-- Movement -->
     <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6">
       <div class="flex justify-between items-start mb-4">
-        <h2 class="font-label-bold text-label-bold text-on-surface flex items-center gap-2">${icon("directions_walk", "text-primary")} Movement</h2>
+        <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-3 lowercase">${hbadge("directions_walk")} did you move?</h2>
         <div class="flex items-center gap-1 bg-surface-container px-2 py-1 rounded-full chunky-border text-xs font-label-bold text-primary">${icon("sync", "text-sm")} Synced</div>
       </div>
       <div class="text-center mb-2">
@@ -90,7 +95,7 @@ export function renderCheckin(root, { name }) {
 
     <!-- Food quick log -->
     <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6">
-      <h2 class="font-label-bold text-label-bold text-on-surface mb-4 flex items-center gap-2">${icon("restaurant", "text-tertiary-container")} What did you eat?</h2>
+      <h2 class="font-headline-md text-headline-md text-on-surface mb-4 flex items-center gap-3 lowercase">${hbadge("restaurant")} fueling the meat suit</h2>
       <button data-log-food class="chunky-button w-full bg-surface-container chunky-border card-shadow rounded-[16px] py-4 flex items-center justify-center gap-2 hover:bg-secondary-container">
         ${icon("add_a_photo", "text-primary")}
         <span class="font-label-bold text-label-bold text-on-surface">Add a bite</span>
@@ -138,12 +143,12 @@ function ctaHtml() {
   if (logged) {
     return `<button data-log-checkin class="${base} checkin-done">
       ${icon("check_circle", "fill-icon")}
-      <span class="font-label-bold text-label-bold text-lg">Logged — see you tomorrow</span>
+      <span class="font-label-bold text-label-bold text-lg">Logged. Go be a person.</span>
     </button>`;
   }
-  return `<button data-log-checkin class="${base} bg-primary text-on-primary hover:bg-surface-tint">
-    <span class="font-label-bold text-label-bold text-lg">Log today, slowly</span>
-    <div class="bg-primary-container px-2 py-1 rounded-full flex items-center gap-1 chunky-border border-on-primary-container/20">
+  return `<button data-log-checkin class="${base} bg-on-surface text-surface hover:-translate-y-0.5">
+    <span class="font-headline-md text-headline-md">Send it 🚀</span>
+    <div class="bg-primary text-on-surface px-2 py-1 rounded-lg flex items-center gap-1 chunky-border">
       ${icon("energy_savings_leaf", "text-sm")}<span class="font-label-bold text-xs">+15</span>
     </div>
   </button>`;

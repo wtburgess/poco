@@ -60,7 +60,7 @@ export function renderHabits(root) {
       <div class="flex-1">
         <h3 class="font-headline-md text-headline-md text-on-surface mb-1">${progressTitle(progress)}</h3>
         <p class="font-body-md text-body-md text-on-surface-variant mb-3">You've completed ${progress}% of your habits this week.</p>
-        <div class="w-full h-4 bg-[#F2EBD4] rounded-full chunky-border overflow-hidden p-0.5">
+        <div class="w-full h-4 bg-[#ffeadc] rounded-full chunky-border overflow-hidden p-0.5">
           <div class="h-full bg-primary rounded-full transition-all duration-700" style="width:${progress}%"></div>
         </div>
       </div>
@@ -93,7 +93,7 @@ function cell(h, dateKey, isToday) {
   const on = !!h.checks[dateKey];
   return `<button data-toggle="${h.id}" data-date="${dateKey}"
     class="toy-btn w-8 h-8 rounded-full chunky-border flex items-center justify-center check-blob shadow-sm ${
-      on ? "bg-primary" : "bg-[#F2EBD4]"
+      on ? "bg-primary" : "bg-[#ffeadc]"
     } ${isToday ? "ring-2 ring-primary ring-offset-1 ring-offset-surface" : ""}">
     ${on ? icon("eco", "text-white text-sm fill-icon") : ""}
   </button>`;
@@ -132,7 +132,7 @@ function habitModal(onDone) {
     `
     <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Plant a habit</h3>
     <label class="block font-label-bold text-label-bold text-on-surface-variant mb-1">Name</label>
-    <input data-field="name" type="text" placeholder="e.g. Stretch" class="w-full mb-4 px-4 py-3 rounded-lg chunky-border bg-[#F2EBD4] font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
+    <input data-field="name" type="text" placeholder="e.g. Stretch" class="w-full mb-4 px-4 py-3 rounded-lg chunky-border bg-[#ffeadc] font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
     <label class="block font-label-bold text-label-bold text-on-surface-variant mb-2">Icon</label>
     <div class="flex flex-wrap gap-2 mb-4" data-icons>
       ${HABIT_ICONS.map((ic, i) => `<button data-icon="${ic}" class="chunky-button w-11 h-11 rounded-full chunky-border flex items-center justify-center ${i === 0 ? "bg-primary text-on-primary" : "bg-surface-container"}">${icon(ic)}</button>`).join("")}

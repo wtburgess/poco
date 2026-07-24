@@ -55,7 +55,7 @@ export function renderFood(root) {
     </section>
 
     <!-- Poco suggests -->
-    <section class="bg-[#F2EBD4] organic-border p-5 card-shadow flex gap-4 items-start">
+    <section class="bg-[#ffeadc] organic-border p-5 card-shadow flex gap-4 items-start">
       <div class="w-12 h-12 flex-shrink-0 bg-secondary-container rounded-full chunky-border flex items-center justify-center overflow-hidden">${pocoImg(46)}</div>
       <div>
         <h3 class="font-label-bold text-label-bold text-on-secondary-fixed mb-1 flex items-center gap-2">Poco suggests ${icon("eco", "text-primary text-sm fill-icon")}</h3>

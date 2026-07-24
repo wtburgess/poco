@@ -11,7 +11,7 @@ import {
 
 const MEAL_ICONS = ["restaurant", "breakfast_dining", "lunch_dining", "dinner_dining", "local_cafe", "bakery_dining", "nutrition"];
 
-const inputCls = "w-full px-4 py-3 rounded-lg chunky-border bg-[#F2EBD4] font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary";
+const inputCls = "w-full px-4 py-3 rounded-lg chunky-border bg-[#ffeadc] font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary";
 
 // Public entry point. Routes checkin.js + food.js "add a bite" here.
 export function logBite(onDone) {
@@ -171,7 +171,7 @@ function renderApproval(ctx, meal, { source }) {
       <h3 class="font-headline-md text-headline-md text-on-surface">${source === "manual" ? "New bite" : "Check Poco's guess"}</h3>
       ${confBadge}
     </div>
-    ${meal.note && source !== "manual" ? `<div class="bg-[#F2EBD4] organic-border p-3 mb-4 flex gap-2 items-start"><span class="material-symbols-outlined text-primary text-sm">eco</span><p class="font-body-md text-sm text-on-surface">${meal.note}</p></div>` : ""}
+    ${meal.note && source !== "manual" ? `<div class="bg-[#ffeadc] organic-border p-3 mb-4 flex gap-2 items-start"><span class="material-symbols-outlined text-primary text-sm">eco</span><p class="font-body-md text-sm text-on-surface">${meal.note}</p></div>` : ""}
 
     <label class="block font-label-bold text-label-bold text-on-surface-variant mb-1">Food</label>
     <input data-f="name" type="text" value="${escAttr(meal.name)}" placeholder="e.g. Avocado toast" class="${inputCls} mb-3" />
@@ -240,7 +240,7 @@ function renderApproval(ctx, meal, { source }) {
 
 function macroInput(key, label, val) {
   return `<div>
-    <input data-f="${key}" type="number" min="0" value="${val != null && val !== "" ? val : ""}" placeholder="0" class="w-full px-2 py-2 rounded-lg chunky-border bg-[#F2EBD4] font-body-md text-center text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
+    <input data-f="${key}" type="number" min="0" value="${val != null && val !== "" ? val : ""}" placeholder="0" class="w-full px-2 py-2 rounded-lg chunky-border bg-[#ffeadc] font-body-md text-center text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
     <span class="block text-center font-body-md text-xs text-on-surface-variant mt-1">${label}</span>
   </div>`;
 }

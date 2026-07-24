@@ -76,7 +76,7 @@ export function renderSettings(root) {
             <p class="font-label-bold text-label-bold text-on-surface">Nudge me at</p>
           </div>
           <div class="flex items-center gap-2">
-            <input data-reminder-time type="time" value="${settings.reminderTime}" class="px-3 py-2 rounded-lg chunky-border bg-[#F2EBD4] font-label-bold text-label-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
+            <input data-reminder-time type="time" value="${settings.reminderTime}" class="px-3 py-2 rounded-lg chunky-border bg-[#ffeadc] font-label-bold text-label-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
             <button data-test-nudge class="chunky-button px-3 py-2 rounded-lg chunky-border bg-surface-container font-label-bold text-xs text-on-surface">Test</button>
           </div>
         </div>
@@ -255,7 +255,7 @@ function nameModal(onDone) {
   openModal(
     `
     <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Your name</h3>
-    <input data-field="name" type="text" value="${cur.replace(/"/g, "&quot;")}" class="w-full mb-6 px-4 py-3 rounded-lg chunky-border bg-[#F2EBD4] font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
+    <input data-field="name" type="text" value="${cur.replace(/"/g, "&quot;")}" class="w-full mb-6 px-4 py-3 rounded-lg chunky-border bg-[#ffeadc] font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
     <div class="flex gap-3">
       <button data-cancel class="chunky-button flex-1 py-3 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold text-on-surface">Cancel</button>
       <button data-save class="chunky-button flex-1 py-3 rounded-full chunky-border bg-primary text-on-primary font-label-bold text-label-bold card-shadow">Save</button>

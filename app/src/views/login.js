@@ -14,7 +14,7 @@ export function renderLogin(root) {
         <p class="font-body-md text-body-md text-on-surface-variant mb-6">Slow &amp; steady. Sign in to track your days.</p>
         <div data-form>
           <input data-email type="email" inputmode="email" autocomplete="email" placeholder="you@email.com"
-            class="w-full mb-3 px-4 py-3 rounded-[16px] chunky-border bg-[#F2EBD4] font-body-md text-on-surface text-center focus:outline-none focus:ring-2 focus:ring-primary" />
+            class="w-full mb-3 px-4 py-3 rounded-[16px] chunky-border bg-[#ffeadc] font-body-md text-on-surface text-center focus:outline-none focus:ring-2 focus:ring-primary" />
           <button data-send class="chunky-button w-full py-3.5 rounded-full chunky-border bg-primary text-on-primary font-label-bold text-label-bold card-shadow flex items-center justify-center gap-2">
             ${icon("auto_awesome", "text-sm")} Send me a magic link
           </button>

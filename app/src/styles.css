@@ -2,27 +2,29 @@
 
 :root {
   --bark: #28180b;
-  --shadow-soft: 0px 4px 0px 0px rgba(112, 90, 73, 0.15);
-  --shadow-soft-up: 0px -4px 0px 0px rgba(112, 90, 73, 0.10);
-  --shadow-press: 0px 2px 0px 0px rgba(40, 24, 11, 0.9);
+  /* Hard, dark offset shadows — the neubrutalist "stacked wooden block" look. */
+  --shadow-soft: 4px 4px 0px 0px rgba(40, 24, 11, 1);
+  --shadow-card: 6px 6px 0px 0px rgba(40, 24, 11, 1);
+  --shadow-soft-up: 0px -6px 0px 0px rgba(40, 24, 11, 1);
+  --shadow-press: 0px 0px 0px 0px rgba(40, 24, 11, 1);
 }
 
 body {
-  font-family: "Work Sans", sans-serif;
+  font-family: "Nunito Sans", sans-serif;
   -webkit-font-smoothing: antialiased;
-  /* Paper grain texture (3-5% opacity) */
+  /* Paper grain texture (subtle, warm) */
   background-image:
-    radial-gradient(rgba(112, 90, 73, 0.035) 1px, transparent 1px);
+    radial-gradient(rgba(40, 24, 11, 0.035) 1px, transparent 1px);
   background-size: 4px 4px;
 }
 
-/* ---- Borders & shadows (the signature 2.5px bark border) ---- */
+/* ---- Borders & shadows (the signature thick bark border) ---- */
 .chunky-border,
 .organic-border,
 .wobbly-border {
-  border: 2.5px solid var(--bark);
+  border: 3px solid var(--bark);
 }
-.organic-border { border-radius: 1.5rem; }
+.organic-border { border-radius: 2rem; }
 .wobbly-border { border-radius: 24px 22px 26px 20px; }
 
 .chunky-shadow,
@@ -30,10 +32,10 @@ body {
 .toy-card,
 .soft-shadow,
 .tactile-card {
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-card);
 }
 
-/* ---- Toy physics: press to depress ---- */
+/* ---- Toy physics: press flattens the shadow and drops the block ---- */
 .chunky-button,
 .toy-btn,
 .tactile-button {
@@ -42,12 +44,12 @@ body {
 .chunky-button:active,
 .toy-btn:active,
 .tactile-button:active {
-  transform: translateY(2px);
-  box-shadow: none !important;
+  transform: translate(3px, 3px);
+  box-shadow: var(--shadow-press) !important;
 }
 
 .tactile-button {
-  border: 2.5px solid var(--bark);
+  border: 3px solid var(--bark);
   box-shadow: var(--shadow-soft);
 }
 
@@ -61,7 +63,7 @@ body {
   right: 0.125rem;
 }
 .toggle-checkbox:checked + .toggle-label {
-  background-color: #3c6626;
+  background-color: #546346;
 }
 
 /* ---- Misc ---- */
@@ -96,12 +98,12 @@ body {
 }
 .toast {
   pointer-events: auto;
-  background: #083542;
-  color: #def4ff;
-  border: 2.5px solid var(--bark);
+  background: #3f2d1e;
+  color: #ffede2;
+  border: 3px solid var(--bark);
   border-radius: 9999px;
   padding: 10px 20px;
-  font-weight: 700;
+  font-weight: 800;
   font-size: 14px;
   box-shadow: var(--shadow-soft);
   display: flex;
@@ -122,7 +124,7 @@ body {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(8, 53, 66, 0.35);
+  background: rgba(40, 24, 11, 0.4);
   backdrop-filter: blur(2px);
   display: flex;
   align-items: flex-end;
@@ -137,12 +139,12 @@ body {
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .modal-sheet {
   background: #ffffff;
-  border: 2.5px solid var(--bark);
+  border: 3px solid var(--bark);
   border-radius: 28px;
   width: 100%;
   max-width: 460px;
   padding: 24px;
-  box-shadow: 0px 8px 0px 0px rgba(40, 24, 11, 0.15);
+  box-shadow: 0px 8px 0px 0px rgba(40, 24, 11, 1);
   animation: sheetUp 0.28s ease both;
 }
 @keyframes sheetUp {
@@ -189,11 +191,11 @@ body {
 
 /* ---- "Done for today" check-in state ---- */
 .checkin-done {
-  background: #eaf7e0 !important;
-  color: #275012 !important;
+  background: #d7e8c3 !important;
+  color: #2f3d23 !important;
   cursor: default;
 }
-.checkin-done:active { transform: none; box-shadow: var(--shadow-soft) !important; }
+.checkin-done:active { transform: none; box-shadow: var(--shadow-card) !important; }
 
 /* Range input styled as sloth slider track fill helper */
 input[type="range"].sloth-range {
@@ -202,8 +204,8 @@ input[type="range"].sloth-range {
   width: 100%;
   height: 16px;
   border-radius: 9999px;
-  border: 2.5px solid var(--bark);
-  background: #d7f2ff;
+  border: 3px solid var(--bark);
+  background: #ffe3cf;
   cursor: pointer;
 }
 input[type="range"].sloth-range::-webkit-slider-thumb {
@@ -212,8 +214,8 @@ input[type="range"].sloth-range::-webkit-slider-thumb {
   width: 28px;
   height: 28px;
   border-radius: 9999px;
-  background: #a96400;
-  border: 2.5px solid var(--bark);
+  background: #546346;
+  border: 3px solid var(--bark);
   box-shadow: var(--shadow-soft);
   margin-top: -1px;
 }
@@ -221,6 +223,6 @@ input[type="range"].sloth-range::-moz-range-thumb {
   width: 28px;
   height: 28px;
   border-radius: 9999px;
-  background: #a96400;
-  border: 2.5px solid var(--bark);
+  background: #546346;
+  border: 3px solid var(--bark);
 }
