@@ -27,6 +27,8 @@ const SLEEP_ROT = [180, 135, 90, 45, 0];
 export function renderCheckin(root, { name }) {
   const c = getTodayCheckin();
   const meals = getTodayMeals();
+  const { goals } = getState();
+  const waterGoal = goals.water || 8; // existing saved goals may predate this field
 
   const body = `
     ${heroSection(name)}
@@ -97,6 +99,17 @@ export function renderCheckin(root, { name }) {
       </div>
     </article>
 
+    <!-- Water -->
+    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-3 lowercase">${hbadge("water_drop")} stay juicy</h2>
+        <span class="font-label-bold text-label-bold text-on-surface-variant"><span data-water-count>${c.water}</span> / ${waterGoal}</span>
+      </div>
+      <div class="flex flex-wrap gap-2 justify-between" data-water-cups>
+        ${waterCups(c.water, waterGoal)}
+      </div>
+    </article>
+
     <!-- Food quick log -->
     <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6">
       <h2 class="font-headline-md text-headline-md text-on-surface mb-4 flex items-center gap-3 lowercase">${hbadge("restaurant")} fueling the meat suit</h2>
@@ -107,6 +120,12 @@ export function renderCheckin(root, { name }) {
       <div class="mt-4 flex flex-col gap-2" data-meal-list>
         ${meals.length ? meals.map(mealRow).join("") : `<p class="text-center font-body-md text-sm text-on-surface-variant py-2">Nothing logged yet.</p>`}
       </div>
+    </article>
+
+    <!-- One line a day -->
+    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6">
+      <h2 class="font-headline-md text-headline-md text-on-surface mb-4 flex items-center gap-3 lowercase">${hbadge("edit_note")} one line a day</h2>
+      <textarea data-note rows="2" maxlength="280" placeholder="anything worth remembering? (or don't — no pressure.)" class="w-full px-4 py-3 rounded-2xl chunky-border bg-surface-container font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary resize-none">${escNote(c.note)}</textarea>
     </article>
 
     <div class="h-24 md:h-4"></div>
@@ -182,6 +201,22 @@ function mealRow(m) {
   </div>`;
 }
 
+// A tappable row of water drops that fill up to the current count.
+function waterCups(current, goal) {
+  let out = "";
+  for (let i = 0; i < goal; i++) {
+    const filled = i < current;
+    out += `<button data-water="${i}" class="chunky-button w-10 h-10 rounded-full chunky-border flex items-center justify-center ${filled ? "bg-primary-fixed" : "bg-surface-container"}">
+      <span class="material-symbols-outlined text-[20px] ${filled ? "text-primary fill-icon" : "text-outline"}">water_drop</span>
+    </button>`;
+  }
+  return out;
+}
+
+function escNote(s) {
+  return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function wire(root, name) {
   // Sleep +/- — updates value and lets Poco react.
   root.querySelectorAll("[data-sleep]").forEach((b) =>
@@ -217,6 +252,26 @@ function wire(root, name) {
     saveCheckin({ steps: c.steps + add });
     root.querySelector("[data-steps]").textContent = (c.steps + add).toLocaleString();
     toast(`+${add.toLocaleString()} steps logged`, "directions_walk");
+  });
+
+  // Water — tap a drop to fill up to it; tap the last filled one to remove it.
+  const waterWrap = root.querySelector("[data-water-cups]");
+  if (waterWrap) {
+    waterWrap.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-water]");
+      if (!btn) return;
+      const i = +btn.dataset.water;
+      const cur = getTodayCheckin().water;
+      const next = cur === i + 1 ? i : i + 1;
+      saveCheckin({ water: next });
+      waterWrap.innerHTML = waterCups(next, getState().goals.water || 8);
+      root.querySelector("[data-water-count]").textContent = next;
+    });
+  }
+
+  // One line a day — save on blur (not every keystroke).
+  root.querySelector("[data-note]")?.addEventListener("change", (e) => {
+    saveCheckin({ note: e.target.value.trim() });
   });
 
   // Food quick log
