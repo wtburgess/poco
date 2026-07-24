@@ -1,7 +1,7 @@
 // Poco service worker — makes the app installable (PWA), serves the shell
 // offline, and receives push events so nudges show even with no tab open.
 // Scope is "/" because it's served from the site root.
-const CACHE = "poco-shell-v1";
+const CACHE = "poco-shell-v2";
 const SHELL = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {

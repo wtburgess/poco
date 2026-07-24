@@ -178,15 +178,19 @@ function syncProfile() {
 }
 
 // ---- Mutations ----
+const DEFAULT_CHECKIN = { sleepHours: 7.5, sleepQuality: 2, mood: 2, steps: 0, logged: false };
+
 export function saveCheckin(patch) {
   const key = todayKey();
-  state.checkins[key] = { ...(state.checkins[key] || {}), ...patch };
+  // Always merge onto the defaults so a partial first-save can't leave a
+  // check-in missing fields (a missing `steps` would crash the check-in view).
+  state.checkins[key] = { ...DEFAULT_CHECKIN, ...(state.checkins[key] || {}), ...patch };
   emit();
   cloudSync("checkin", { date: key, c: state.checkins[key] });
 }
 
 export function getTodayCheckin() {
-  return state.checkins[todayKey()] || { sleepHours: 7.5, sleepQuality: 2, mood: 2, steps: 0, logged: false };
+  return { ...DEFAULT_CHECKIN, ...(state.checkins[todayKey()] || {}) };
 }
 
 export function isCheckinLoggedToday() {
