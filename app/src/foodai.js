@@ -17,13 +17,24 @@ export function aiStatus() {
 }
 
 // POST { image?, text? } → nutrition estimate object. Throws on error so the
-// caller can show a message + offer manual entry.
+// caller can show a message + offer manual entry. Times out after 65s so a
+// hung request falls back instead of spinning forever.
 export async function analyzeFood({ image, text } = {}) {
-  const r = await fetch("/api/analyze-food", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ image, text }),
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 65000);
+  let r;
+  try {
+    r = await fetch("/api/analyze-food", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ image, text }),
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    clearTimeout(timer);
+    throw new Error(e.name === "AbortError" ? "That took too long — try again or log it by hand." : "Couldn't reach the analyzer.");
+  }
+  clearTimeout(timer);
   if (!r.ok) {
     let msg = `Analysis failed (${r.status})`;
     try {

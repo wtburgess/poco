@@ -9,6 +9,10 @@
 // plain manual entry instead of pretending the AI is available.
 import Anthropic from "@anthropic-ai/sdk";
 
+// Vision estimates can take longer than Vercel's default 10s function limit —
+// give the request room so a photo analysis doesn't 504 mid-flight.
+export const config = { maxDuration: 60 };
+
 // Material Symbol names Poco already ships — keep the model on-palette.
 const ICONS = [
   "restaurant", "breakfast_dining", "lunch_dining", "dinner_dining",
@@ -94,13 +98,17 @@ export default async function handler(req, res) {
     });
 
     const client = new Anthropic();
-    const response = await client.messages.create({
+    // Stream to dodge intermediate proxy timeouts on vision requests, and keep
+    // effort low — a portion estimate doesn't need deep deliberation, so this
+    // stays fast and cheap.
+    const stream = client.messages.stream({
       model: "claude-opus-4-8",
       max_tokens: 1024,
       system: SYSTEM,
-      output_config: { format: { type: "json_schema", schema: SCHEMA } },
+      output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
       messages: [{ role: "user", content }],
     });
+    const response = await stream.finalMessage();
 
     if (response.stop_reason === "refusal") {
       res.status(422).json({ error: "Couldn't analyze that one — try a manual entry." });

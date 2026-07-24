@@ -61,6 +61,16 @@ export function renderCheckin(root, { name }) {
       </div>
     </article>
 
+    <!-- Confirm today's reflection (sleep + mood) -->
+    ${ctaHtml()}
+
+    <!-- Throughout the day: things you keep logging -->
+    <div class="flex items-center gap-3 pt-3 pb-1">
+      <div class="h-px flex-1 bg-outline-variant/40"></div>
+      <span class="font-label-bold text-label-bold text-on-surface-variant flex items-center gap-1">${icon("wb_sunny", "text-sm text-tertiary-container")} Throughout the day</span>
+      <div class="h-px flex-1 bg-outline-variant/40"></div>
+    </div>
+
     <!-- Movement -->
     <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6">
       <div class="flex justify-between items-start mb-4">
@@ -90,8 +100,7 @@ export function renderCheckin(root, { name }) {
       </div>
     </article>
 
-    <div class="h-4"></div>
-    ${ctaHtml()}
+    <div class="h-24 md:h-4"></div>
   `;
 
   root.innerHTML = shell("checkin", body);
@@ -125,7 +134,7 @@ function streakBadge() {
 
 function ctaHtml() {
   const logged = isCheckinLoggedToday();
-  const base = "chunky-button fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 md:left-auto md:right-8 md:translate-x-0 rounded-full px-8 py-4 flex items-center gap-3 chunky-border card-shadow z-40 w-[calc(100%-48px)] max-w-sm md:w-auto justify-center";
+  const base = "chunky-button w-full rounded-full px-8 py-4 flex items-center gap-3 chunky-border card-shadow justify-center";
   if (logged) {
     return `<button data-log-checkin class="${base} checkin-done">
       ${icon("check_circle", "fill-icon")}
