@@ -1,17 +1,19 @@
 // AI food analysis: takes a photo and/or text description of a meal and returns
-// a structured nutrition estimate. Uses Claude (vision + structured outputs).
+// a structured nutrition estimate. Uses Google Gemini (free tier) via its REST
+// API — no SDK dependency, just fetch.
 //
-//   GET  → { ok, configured }        — probe so the client knows whether to
-//                                       show the AI flow or fall back to manual.
+//   GET  → { ok, configured }        — probe so the client / verify step knows
+//                                       whether the AI backend is wired up.
 //   POST { image?, text? }           → a single nutrition estimate object.
 //
-// When ANTHROPIC_API_KEY is unset we return 501 so the client can fall back to
-// plain manual entry instead of pretending the AI is available.
-import Anthropic from "@anthropic-ai/sdk";
+// Set GEMINI_API_KEY (free key from https://aistudio.google.com/apikey).
+// No key → 501 so the client falls back to plain manual entry.
 
-// Vision estimates can take longer than Vercel's default 10s function limit —
-// give the request room so a photo analysis doesn't 504 mid-flight.
-export const config = { maxDuration: 60 };
+// Gemini Flash is fast, but give the function a little headroom anyway.
+export const config = { maxDuration: 30 };
+
+// Free-tier multimodal model; override with GEMINI_MODEL if needed.
+const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
 // Material Symbol names Poco already ships — keep the model on-palette.
 const ICONS = [
@@ -21,23 +23,25 @@ const ICONS = [
   "grocery", "fastfood", "liquor", "cookie",
 ];
 
+// Gemini uses an OpenAPI-subset schema: UPPERCASE type names, no
+// additionalProperties. propertyOrdering keeps the JSON stable.
 const SCHEMA = {
-  type: "object",
-  additionalProperties: false,
+  type: "OBJECT",
   properties: {
-    name: { type: "string", description: "Short human name for the food, e.g. 'Avocado toast'." },
-    kcal: { type: "integer", description: "Total calories for the portion shown/described." },
-    protein_g: { type: "number" },
-    fat_g: { type: "number" },
-    carbs_g: { type: "number" },
-    sugar_g: { type: "number" },
-    fiber_g: { type: "number" },
-    serving: { type: "string", description: "The portion this estimate is for, e.g. '1 bowl (~300g)'." },
-    icon: { type: "string", enum: ICONS, description: "Best-matching Material Symbol name." },
-    confidence: { type: "string", enum: ["low", "medium", "high"] },
-    note: { type: "string", description: "One short, friendly line — call out assumptions (e.g. assumed a normal serving) or caveats. Keep it under ~140 chars." },
+    name: { type: "STRING", description: "Short human name for the food, e.g. 'Avocado toast'." },
+    kcal: { type: "INTEGER", description: "Total calories for the portion shown/described." },
+    protein_g: { type: "NUMBER" },
+    fat_g: { type: "NUMBER" },
+    carbs_g: { type: "NUMBER" },
+    sugar_g: { type: "NUMBER" },
+    fiber_g: { type: "NUMBER" },
+    serving: { type: "STRING", description: "The portion this estimate is for, e.g. '1 bowl (~300g)'." },
+    icon: { type: "STRING", enum: ICONS, description: "Best-matching Material Symbol name." },
+    confidence: { type: "STRING", enum: ["low", "medium", "high"] },
+    note: { type: "STRING", description: "One short, friendly line — call out assumptions or caveats. Under ~140 chars." },
   },
   required: ["name", "kcal", "protein_g", "fat_g", "carbs_g", "sugar_g", "fiber_g", "serving", "icon", "confidence", "note"],
+  propertyOrdering: ["name", "kcal", "protein_g", "fat_g", "carbs_g", "sugar_g", "fiber_g", "serving", "icon", "confidence", "note"],
 };
 
 const SYSTEM = `You are Poco's food-logging helper — you turn a photo and/or a short description of a meal into a realistic nutrition estimate.
@@ -59,7 +63,7 @@ function parseImage(image) {
 }
 
 export default async function handler(req, res) {
-  const configured = !!process.env.ANTHROPIC_API_KEY;
+  const configured = !!process.env.GEMINI_API_KEY;
 
   if (req.method === "GET") {
     res.status(200).json({ ok: true, configured });
@@ -70,7 +74,7 @@ export default async function handler(req, res) {
     return;
   }
   if (!configured) {
-    res.status(501).json({ error: "AI food logging isn't configured — set ANTHROPIC_API_KEY." });
+    res.status(501).json({ error: "AI food logging isn't configured — set GEMINI_API_KEY." });
     return;
   }
 
@@ -83,45 +87,64 @@ export default async function handler(req, res) {
       return;
     }
 
-    const content = [];
+    const parts = [];
     if (img) {
-      content.push({
-        type: "image",
-        source: { type: "base64", media_type: img.media_type, data: img.data },
-      });
+      parts.push({ inline_data: { mime_type: img.media_type, data: img.data } });
     }
-    content.push({
-      type: "text",
+    parts.push({
       text: text && text.trim()
         ? `Estimate the nutrition for this meal: ${text.trim()}`
         : "Estimate the nutrition for the food in this image.",
     });
 
-    const client = new Anthropic();
-    // Stream to dodge intermediate proxy timeouts on vision requests, and keep
-    // effort low — a portion estimate doesn't need deep deliberation, so this
-    // stays fast and cheap.
-    const stream = client.messages.stream({
-      model: "claude-opus-4-8",
-      max_tokens: 1024,
-      system: SYSTEM,
-      output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
-      messages: [{ role: "user", content }],
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+    const r = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-goog-api-key": process.env.GEMINI_API_KEY,
+      },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: SYSTEM }] },
+        contents: [{ role: "user", parts }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: SCHEMA,
+        },
+      }),
     });
-    const response = await stream.finalMessage();
 
-    if (response.stop_reason === "refusal") {
+    if (!r.ok) {
+      let msg = `Analysis failed (${r.status})`;
+      try {
+        const j = await r.json();
+        if (j && j.error && j.error.message) msg = j.error.message;
+      } catch { /* keep default */ }
+      // 429 (rate limit) and 4xx from Gemini are usually transient/config — let
+      // the client show the message and offer manual entry.
+      res.status(502).json({ error: msg });
+      return;
+    }
+
+    const data = await r.json();
+
+    // Safety block (no candidate) → let the client fall back to manual.
+    if (data.promptFeedback && data.promptFeedback.blockReason) {
       res.status(422).json({ error: "Couldn't analyze that one — try a manual entry." });
       return;
     }
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    if (!textBlock) {
+    const cand = data.candidates && data.candidates[0];
+    const partWithText = cand && cand.content && cand.content.parts
+      ? cand.content.parts.find((p) => typeof p.text === "string")
+      : null;
+    if (!partWithText) {
       res.status(502).json({ error: "empty response from the model" });
       return;
     }
-    const data = JSON.parse(textBlock.text);
-    res.status(200).json(data);
+
+    const parsed = JSON.parse(partWithText.text);
+    res.status(200).json(parsed);
   } catch (e) {
     res.status(500).json({ error: String(e && e.message ? e.message : e) });
   }
