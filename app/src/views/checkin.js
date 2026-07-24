@@ -20,6 +20,10 @@ function hbadge(name) {
   return `<span class="material-symbols-outlined bg-on-surface text-surface p-2 rounded-xl text-[22px] leading-none">${name}</span>`;
 }
 
+// Sleep quality: a thumb that rotates from 👎 (rough night) to 👍 (great one),
+// instead of the happy/sad faces used for mood.
+const SLEEP_ROT = [180, 135, 90, 45, 0];
+
 export function renderCheckin(root, { name }) {
   const c = getTodayCheckin();
   const meals = getTodayMeals();
@@ -47,7 +51,7 @@ export function renderCheckin(root, { name }) {
         </div>
         <div class="w-full">
           <div class="flex justify-between px-1 mb-2" data-quality-faces>
-            ${MOODS.map((m, i) => `<button data-quality="${i}" class="material-symbols-outlined ${i === c.sleepQuality ? "text-tertiary-container fill-icon" : "text-outline"}">${m}</button>`).join("")}
+            ${SLEEP_ROT.map((rot, i) => `<button data-quality="${i}" style="transform:rotate(${rot}deg)" class="material-symbols-outlined ${i === c.sleepQuality ? "text-tertiary-container fill-icon" : "text-outline"}">thumb_up</button>`).join("")}
           </div>
           <div class="h-4 bg-surface-container rounded-full chunky-border relative overflow-hidden">
             <div class="absolute top-0 left-0 h-full bg-tertiary-container" data-quality-fill style="width:${((c.sleepQuality + 1) / 5) * 100}%"></div>
