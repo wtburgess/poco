@@ -54,6 +54,9 @@ export function renderFood(root) {
       ${macroRing("Fat", macros.fat, "secondary")}
     </section>
 
+    <!-- Macro split (proportion by calories) -->
+    ${(macros.protein || macros.carbs || macros.fat) ? macroBarStrip(macros) : ""}
+
     <!-- Poco suggests -->
     <section class="bg-[#ffeadc] organic-border p-5 card-shadow flex gap-4 items-start">
       <div class="w-12 h-12 flex-shrink-0 bg-secondary-container rounded-full chunky-border flex items-center justify-center overflow-hidden">${pocoImg(46)}</div>
@@ -113,6 +116,23 @@ function dayMacros(meals, intake) {
     carbs: Math.round(intake * 0.11),
     fat: Math.round(intake * 0.035),
   };
+}
+
+// Slim carbs/fat/protein proportion bar (by calories), matching the meal card.
+function macroBarStrip(m) {
+  const pc = m.protein * 4, cc = m.carbs * 4, fc = m.fat * 9;
+  const sum = pc + cc + fc || 1;
+  const seg = (v, cls) => `<div class="${cls}" style="width:${(v / sum) * 100}%"></div>`;
+  return `<section class="bg-surface-container-lowest organic-border p-4 card-shadow">
+    <div class="flex h-3 rounded-full overflow-hidden chunky-border mb-2">
+      ${seg(cc, "bg-tertiary-container")}${seg(fc, "bg-secondary")}${seg(pc, "bg-primary")}
+    </div>
+    <div class="flex justify-between text-xs font-label-bold">
+      <span class="text-tertiary">Carbs ${m.carbs}g</span>
+      <span class="text-secondary">Fat ${m.fat}g</span>
+      <span class="text-primary">Protein ${m.protein}g</span>
+    </div>
+  </section>`;
 }
 
 function macroRing(label, grams, color) {

@@ -1,15 +1,16 @@
 // "Log a bite" — the AI-assisted food logging flow.
 // Three ways in: snap a Photo, Describe it (with optional voice), or type it in
-// by hand. Photo/Describe run through Claude and land on an editable approval
-// card; manual entry goes straight to that card with blank fields. On confirm we
-// persist the full macro set and award a leaf.
+// by hand. Photo/Describe run through the AI and land on an itemized, editable
+// breakdown (name · portion · kcal · macros per item) with a live total,
+// nutrition score, and macro bar — BitePal-style. On confirm each item is saved
+// as its own entry and a leaf is awarded.
 import { addMeal, addPoints } from "../store.js";
 import { icon, pocoImg, openModal, closeModal, toast } from "../ui.js";
 import {
   analyzeFood, resizeImage, speechSupported, dictate,
 } from "../foodai.js";
 
-const MEAL_ICONS = ["restaurant", "breakfast_dining", "lunch_dining", "dinner_dining", "local_cafe", "bakery_dining", "nutrition"];
+const MEAL_ICONS = ["restaurant", "breakfast_dining", "lunch_dining", "dinner_dining", "local_cafe", "bakery_dining", "nutrition", "ramen_dining", "egg_alt", "local_pizza", "icecream"];
 
 const inputCls = "w-full px-4 py-3 rounded-lg chunky-border bg-[#ffeadc] font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary";
 
@@ -30,9 +31,6 @@ function setStage(ctx, html, wire) {
 }
 
 // ---- Stage 1: how do you want to log? ----
-// The photo/describe options always show. If the AI backend isn't set up (or
-// you're on localhost with no /api), tapping through lands on a clear message
-// with a manual fallback — rather than the buttons silently disappearing.
 function renderChoose(ctx) {
   const html = `
     <div class="flex items-center gap-3 mb-4">
@@ -57,7 +55,7 @@ function renderChoose(ctx) {
   `;
   setStage(ctx, html, (el) => {
     el.querySelector("[data-cancel]").addEventListener("click", closeModal);
-    el.querySelector("[data-manual]").addEventListener("click", () => renderApproval(ctx, blankMeal(), { source: "manual" }));
+    el.querySelector("[data-manual]").addEventListener("click", () => renderReview(ctx, [blankItem()], { source: "manual" }));
     const file = el.querySelector("[data-file]");
     el.querySelector("[data-photo]").addEventListener("click", () => file.click());
     file.addEventListener("change", () => {
@@ -73,7 +71,7 @@ async function handlePhoto(ctx, file) {
   try {
     const image = await resizeImage(file, 1024, 0.8);
     const data = await analyzeFood({ image });
-    renderApproval(ctx, fromAI(data), { source: "photo" });
+    renderReview(ctx, fromAIItems(data), { source: "photo", note: data.note });
   } catch (e) {
     renderError(ctx, e);
   }
@@ -83,8 +81,8 @@ async function handlePhoto(ctx, file) {
 function renderDescribe(ctx) {
   const canVoice = speechSupported();
   const html = `
-    <h3 class="font-headline-md text-headline-md text-on-surface mb-1">Describe your bite</h3>
-    <p class="font-body-md text-sm text-on-surface-variant mb-4">"a bowl of ramen with an egg", "two oat cookies"…</p>
+    <h3 class="font-headline-md text-headline-md text-on-surface mb-1">Describe your meal</h3>
+    <p class="font-body-md text-sm text-on-surface-variant mb-4">"a bowl of ramen with an egg and greens", "two oat cookies"…</p>
     <div class="relative mb-4">
       <textarea data-text rows="3" placeholder="What did you eat?" class="${inputCls} resize-none pr-12"></textarea>
       ${canVoice ? `<button data-mic class="chunky-button absolute right-2 bottom-2 w-9 h-9 rounded-full chunky-border bg-surface-container flex items-center justify-center">${icon("mic", "text-primary text-sm")}</button>` : ""}
@@ -104,7 +102,7 @@ function renderDescribe(ctx) {
       renderAnalyzing(ctx, "Doing the math…");
       try {
         const data = await analyzeFood({ text });
-        renderApproval(ctx, fromAI(data), { source: "voice" });
+        renderReview(ctx, fromAIItems(data), { source: "voice", note: data.note });
       } catch (e) {
         renderError(ctx, e);
       }
@@ -142,7 +140,7 @@ function renderAnalyzing(ctx, label) {
         <span class="material-symbols-outlined animate-spin">progress_activity</span>
         <span class="font-label-bold text-label-bold">${label}</span>
       </div>
-      <p class="font-body-md text-xs text-on-surface-variant">Poco's guessing your macros…</p>
+      <p class="font-body-md text-xs text-on-surface-variant">Poco's breaking it down…</p>
     </div>
   `);
 }
@@ -151,133 +149,258 @@ function renderAnalyzing(ctx, label) {
 function renderError(ctx, err) {
   setStage(ctx, `
     <h3 class="font-headline-md text-headline-md text-on-surface mb-2">Hmm, that didn't work</h3>
-    <p class="font-body-md text-body-md text-on-surface-variant mb-5">${err && err.message ? err.message : "Something went sideways."} You can still log it by hand.</p>
+    <p class="font-body-md text-body-md text-on-surface-variant mb-5">${esc(err && err.message ? err.message : "Something went sideways.")} You can still log it by hand.</p>
     <div class="flex gap-3">
       <button data-back class="chunky-button flex-1 py-3 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold text-on-surface">Back</button>
       <button data-manual class="chunky-button flex-1 py-3 rounded-full chunky-border bg-primary text-on-primary font-label-bold text-label-bold card-shadow">Manual entry</button>
     </div>
   `, (el) => {
     el.querySelector("[data-back]").addEventListener("click", () => renderChoose(ctx));
-    el.querySelector("[data-manual]").addEventListener("click", () => renderApproval(ctx, blankMeal(), { source: "manual" }));
+    el.querySelector("[data-manual]").addEventListener("click", () => renderReview(ctx, [blankItem()], { source: "manual" }));
   });
 }
 
-// ---- Approval / edit card ----
-function renderApproval(ctx, meal, { source }) {
-  const confBadge = meal.confidence && source !== "manual"
-    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full chunky-border text-xs font-label-bold ${confClass(meal.confidence)}">${icon("insights", "text-xs")} ${meal.confidence}</span>`
-    : "";
-  const html = `
+// ---- Meal review: an itemized, editable breakdown (BitePal-style) ----
+function renderReview(ctx, initialItems, meta) {
+  const items = (initialItems && initialItems.length ? initialItems : [blankItem()]).map(normItem);
+  let expanded = meta.source === "manual" ? 0 : -1;
+  let rating = 0; // 1 = up, -1 = down
+
+  function render() {
+    setStage(ctx, reviewHtml(items, expanded, meta, rating), wire);
+    if (expanded >= 0) ctx.stageEl.querySelector(`[data-field='name'][data-i='${expanded}']`)?.focus({ preventScroll: true });
+  }
+
+  function wire(el) {
+    el.querySelector("[data-rate-up]")?.addEventListener("click", () => { rating = 1; toast("Poco preens. 🌿", "thumb_up"); render(); });
+    el.querySelector("[data-rate-down]")?.addEventListener("click", () => { rating = -1; toast("Fair. Tweak the numbers below.", "thumb_down"); render(); });
+
+    el.querySelectorAll("[data-expand]").forEach((b) =>
+      b.addEventListener("click", () => { const i = +b.dataset.expand; expanded = expanded === i ? -1 : i; render(); }));
+
+    el.querySelectorAll("[data-remove-item]").forEach((b) =>
+      b.addEventListener("click", () => {
+        items.splice(+b.dataset.removeItem, 1);
+        if (!items.length) items.push(blankItem());
+        expanded = -1;
+        render();
+      }));
+
+    el.querySelector("[data-add-item]")?.addEventListener("click", () => { items.push(blankItem()); expanded = items.length - 1; render(); });
+
+    el.querySelectorAll("[data-item-icon]").forEach((b) =>
+      b.addEventListener("click", () => { const [i, ic] = b.dataset.itemIcon.split("|"); items[+i].icon = ic; render(); }));
+
+    // Live-edit fields: numeric changes also refresh the summary in place (no
+    // full re-render, so focus is never stolen mid-typing).
+    el.querySelectorAll("[data-field]").forEach((inp) =>
+      inp.addEventListener("input", () => {
+        const i = +inp.dataset.i;
+        const k = inp.dataset.field;
+        if (k === "name" || k === "portion") {
+          items[i][k] = inp.value;
+        } else {
+          const v = parseFloat(inp.value);
+          items[i][k] = Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0;
+          const box = el.querySelector("[data-summary]");
+          if (box) box.innerHTML = summaryHtml(totals(items));
+        }
+      }));
+
+    el.querySelector("[data-cancel]").addEventListener("click", closeModal);
+    el.querySelector("[data-save]").addEventListener("click", () => {
+      const valid = items.filter((it) => it.name.trim());
+      if (!valid.length) { toast("Give at least one item a name."); return; }
+      const time = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      valid.forEach((it) => addMeal({
+        name: it.name.trim(),
+        kcal: it.kcal, protein: it.protein, fat: it.fat, carbs: it.carbs, sugar: it.sugar, fiber: it.fiber,
+        icon: it.icon, portion: it.portion.trim(), time, source: meta.source,
+      }));
+      addPoints(5);
+      closeModal();
+      toast(valid.length > 1 ? `${valid.length} items logged. +5 🌿` : `${valid[0].name.trim()} added. +5 🌿`);
+      if (ctx.onDone) ctx.onDone();
+    });
+  }
+
+  render();
+}
+
+function reviewHtml(items, expanded, meta, rating) {
+  const isAI = meta.source !== "manual";
+  const rateChip = isAI ? `
+    <div class="flex items-center gap-1">
+      <button data-rate-up class="chunky-button w-8 h-8 rounded-full chunky-border flex items-center justify-center ${rating === 1 ? "bg-primary text-on-primary" : "bg-surface-container"}">${icon("thumb_up", "text-sm")}</button>
+      <button data-rate-down class="chunky-button w-8 h-8 rounded-full chunky-border flex items-center justify-center ${rating === -1 ? "bg-error-container text-error" : "bg-surface-container"}">${icon("thumb_down", "text-sm")}</button>
+    </div>` : "";
+  return `
     <div class="flex items-center justify-between mb-3">
-      <h3 class="font-headline-md text-headline-md text-on-surface">${source === "manual" ? "New bite" : "Check Poco's guess"}</h3>
-      ${confBadge}
+      <h3 class="font-headline-md text-headline-md text-on-surface lowercase">${isAI ? "check the breakdown" : "new meal"}</h3>
+      ${rateChip}
     </div>
-    ${meal.note && source !== "manual" ? `<div class="bg-[#ffeadc] organic-border p-3 mb-4 flex gap-2 items-start"><span class="material-symbols-outlined text-primary text-sm">eco</span><p class="font-body-md text-sm text-on-surface">${meal.note}</p></div>` : ""}
+    ${meta.note && isAI ? `<div class="bg-[#ffeadc] rounded-2xl chunky-border p-3 mb-3 flex gap-2 items-start"><span class="material-symbols-outlined text-primary text-sm">eco</span><p class="font-body-md text-sm text-on-surface">${esc(meta.note)}</p></div>` : ""}
 
-    <label class="block font-label-bold text-label-bold text-on-surface-variant mb-1">Food</label>
-    <input data-f="name" type="text" value="${escAttr(meal.name)}" placeholder="e.g. Avocado toast" class="${inputCls} mb-3" />
+    <div data-summary>${summaryHtml(totals(items))}</div>
 
-    <label class="block font-label-bold text-label-bold text-on-surface-variant mb-1">Calories (kcal)</label>
-    <input data-f="kcal" type="number" min="0" value="${meal.kcal || ""}" placeholder="350" class="${inputCls} mb-3" />
-
-    <label class="block font-label-bold text-label-bold text-on-surface-variant mb-1">Macros (g)</label>
-    <div class="grid grid-cols-3 gap-2 mb-3">
-      ${macroInput("protein", "Protein", meal.protein)}
-      ${macroInput("carbs", "Carbs", meal.carbs)}
-      ${macroInput("fat", "Fat", meal.fat)}
-      ${macroInput("sugar", "Sugar", meal.sugar)}
-      ${macroInput("fiber", "Fiber", meal.fiber)}
+    <div class="flex flex-col gap-2 my-3" data-items>
+      ${items.map((it, i) => itemRow(it, i, i === expanded)).join("")}
     </div>
 
-    <label class="block font-label-bold text-label-bold text-on-surface-variant mb-2">Type</label>
-    <div class="flex flex-wrap gap-2 mb-5" data-icons>
-      ${MEAL_ICONS.map((ic) => `<button data-icon="${ic}" class="chunky-button w-11 h-11 rounded-full chunky-border flex items-center justify-center ${ic === meal.icon ? "bg-primary text-on-primary" : "bg-surface-container"}">${icon(ic)}</button>`).join("")}
-    </div>
+    <button data-add-item class="chunky-button w-full py-2.5 rounded-full border-dashed border-[2.5px] border-outline flex items-center justify-center gap-1 text-on-surface-variant hover:bg-surface-container mb-4">
+      ${icon("add", "text-sm")}<span class="font-label-bold text-label-bold">Add an item</span>
+    </button>
 
     <div class="flex gap-3">
       <button data-cancel class="chunky-button flex-1 py-3 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold text-on-surface">Cancel</button>
-      <button data-save class="chunky-button flex-1 py-3 rounded-full chunky-border bg-primary text-on-primary font-label-bold text-label-bold card-shadow">Add it</button>
+      <button data-save class="chunky-button flex-1 py-3 rounded-full chunky-border bg-primary text-on-primary font-label-bold text-label-bold card-shadow">Log it${items.length > 1 ? " all" : ""}</button>
     </div>
   `;
-  setStage(ctx, html, (el) => {
-    let selectedIcon = MEAL_ICONS.includes(meal.icon) ? meal.icon : MEAL_ICONS[0];
-    el.querySelectorAll("[data-icon]").forEach((b) =>
-      b.addEventListener("click", () => {
-        selectedIcon = b.dataset.icon;
-        el.querySelectorAll("[data-icon]").forEach((x) => {
-          x.className = `chunky-button w-11 h-11 rounded-full chunky-border flex items-center justify-center ${x === b ? "bg-primary text-on-primary" : "bg-surface-container"}`;
-        });
-      })
-    );
-    el.querySelector("[data-cancel]").addEventListener("click", closeModal);
-    if (source === "manual") el.querySelector("[data-f='name']").focus();
-    el.querySelector("[data-save]").addEventListener("click", () => {
-      const name = el.querySelector("[data-f='name']").value.trim();
-      if (!name) { el.querySelector("[data-f='name']").focus(); return; }
-      const num = (k) => {
-        const v = parseFloat(el.querySelector(`[data-f='${k}']`).value);
-        return Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0;
-      };
-      const time = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      addMeal({
-        name,
-        kcal: num("kcal"),
-        protein: num("protein"),
-        fat: num("fat"),
-        carbs: num("carbs"),
-        sugar: num("sugar"),
-        fiber: num("fiber"),
-        icon: selectedIcon,
-        time,
-        source,
-      });
-      addPoints(5);
-      closeModal();
-      toast(`${name} added. +5 🌿`);
-      if (ctx.onDone) ctx.onDone();
-    });
-  });
 }
 
-function macroInput(key, label, val) {
-  return `<div>
-    <input data-f="${key}" type="number" min="0" value="${val != null && val !== "" ? val : ""}" placeholder="0" class="w-full px-2 py-2 rounded-lg chunky-border bg-[#ffeadc] font-body-md text-center text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
-    <span class="block text-center font-body-md text-xs text-on-surface-variant mt-1">${label}</span>
-  </div>`;
+// Score + macro bar + total. Re-rendered on the fly as items change.
+function summaryHtml(t) {
+  const score = nutritionScore(t);
+  return `
+    <div class="bg-surface-container rounded-2xl chunky-border p-4 flex flex-col gap-3">
+      <div class="flex items-end justify-between">
+        <div>
+          <p class="font-label-bold text-label-bold text-on-surface-variant">Nutrition score</p>
+          <p class="font-headline-md text-headline-md ${scoreClass(score)} lowercase">${scoreLabel(score)}</p>
+        </div>
+        <div class="text-right">
+          <span class="font-display-sm text-display-sm ${scoreClass(score)}">${score}</span>
+          <span class="block font-body-md text-xs text-on-surface-variant">/ 100</span>
+        </div>
+      </div>
+      ${macroBar(t)}
+      <div class="flex items-center justify-between pt-2 border-t-2 border-outline-variant/40">
+        <span class="font-label-bold text-label-bold text-on-surface">Total</span>
+        <span class="font-headline-md text-headline-md text-on-surface">${t.kcal.toLocaleString()} kcal</span>
+      </div>
+    </div>
+  `;
 }
 
-// ---- helpers ----
-function blankMeal() {
-  return { name: "", kcal: "", protein: "", fat: "", carbs: "", sugar: "", fiber: "", icon: MEAL_ICONS[0] };
+function macroBar(t) {
+  const pc = t.protein * 4, cc = t.carbs * 4, fc = t.fat * 9;
+  const sum = pc + cc + fc || 1;
+  const seg = (v, cls) => `<div class="${cls}" style="width:${(v / sum) * 100}%"></div>`;
+  return `
+    <div>
+      <div class="flex h-3 rounded-full overflow-hidden chunky-border">
+        ${seg(cc, "bg-tertiary-container")}${seg(fc, "bg-secondary")}${seg(pc, "bg-primary")}
+      </div>
+      <div class="flex justify-between mt-1.5 text-xs font-label-bold">
+        <span class="text-tertiary">C ${t.carbs}g</span>
+        <span class="text-secondary">F ${t.fat}g</span>
+        <span class="text-primary">P ${t.protein}g</span>
+      </div>
+    </div>
+  `;
 }
 
-function fromAI(d) {
+function itemRow(it, i, expanded) {
+  if (!expanded) {
+    return `
+      <div class="bg-surface-container-lowest rounded-2xl chunky-border p-3 flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full chunky-border bg-surface-container flex items-center justify-center flex-shrink-0">${icon(it.icon || "restaurant", "text-tertiary-container")}</div>
+        <div class="flex-1 min-w-0">
+          <p class="font-label-bold text-label-bold text-on-surface truncate">${esc(it.name) || "(unnamed)"}</p>
+          <p class="text-xs text-on-surface-variant truncate">${it.portion ? esc(it.portion) + " • " : ""}${it.kcal} kcal</p>
+        </div>
+        <button data-expand="${i}" class="chunky-button w-8 h-8 rounded-full chunky-border bg-surface-container flex items-center justify-center">${icon("edit", "text-sm")}</button>
+        <button data-remove-item="${i}" class="chunky-button w-8 h-8 rounded-full chunky-border bg-error-container text-error flex items-center justify-center">${icon("close", "text-sm")}</button>
+      </div>`;
+  }
+  const macro = (k, lbl) => `<div><input data-field="${k}" data-i="${i}" type="number" min="0" value="${it[k] || ""}" placeholder="0" class="w-full px-1 py-2 rounded-lg chunky-border bg-[#ffeadc] font-body-md text-center text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" /><span class="block text-center text-[10px] text-on-surface-variant mt-0.5">${lbl}</span></div>`;
+  return `
+    <div class="bg-surface-container-lowest rounded-2xl chunky-border p-3 flex flex-col gap-2">
+      <div class="flex items-center gap-2">
+        <input data-field="name" data-i="${i}" type="text" value="${escAttr(it.name)}" placeholder="food" class="flex-1 px-3 py-2 rounded-lg chunky-border bg-[#ffeadc] font-label-bold text-label-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
+        <button data-expand="${i}" class="chunky-button w-8 h-8 rounded-full chunky-border bg-primary text-on-primary flex items-center justify-center">${icon("check", "text-sm")}</button>
+        <button data-remove-item="${i}" class="chunky-button w-8 h-8 rounded-full chunky-border bg-error-container text-error flex items-center justify-center">${icon("close", "text-sm")}</button>
+      </div>
+      <div class="flex items-center gap-2">
+        <input data-field="portion" data-i="${i}" type="text" value="${escAttr(it.portion)}" placeholder="portion — e.g. 1 bowl (~400g)" class="flex-1 px-3 py-2 rounded-lg chunky-border bg-[#ffeadc] font-body-md text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
+        <div class="flex items-center gap-1">
+          <input data-field="kcal" data-i="${i}" type="number" min="0" value="${it.kcal || ""}" placeholder="0" class="w-20 px-2 py-2 rounded-lg chunky-border bg-[#ffeadc] font-body-md text-center text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
+          <span class="text-xs text-on-surface-variant">kcal</span>
+        </div>
+      </div>
+      <div class="grid grid-cols-5 gap-1">
+        ${macro("protein", "prot")}${macro("carbs", "carb")}${macro("fat", "fat")}${macro("sugar", "sug")}${macro("fiber", "fib")}
+      </div>
+      <div class="flex flex-wrap gap-1">
+        ${MEAL_ICONS.map((ic) => `<button data-item-icon="${i}|${ic}" class="chunky-button w-8 h-8 rounded-full chunky-border flex items-center justify-center ${ic === it.icon ? "bg-primary text-on-primary" : "bg-surface-container"}">${icon(ic, "text-sm")}</button>`).join("")}
+      </div>
+    </div>`;
+}
+
+// ---- scoring ----
+function totals(items) {
+  const t = { kcal: 0, protein: 0, fat: 0, carbs: 0, sugar: 0, fiber: 0 };
+  for (const it of items) {
+    t.kcal += it.kcal; t.protein += it.protein; t.fat += it.fat;
+    t.carbs += it.carbs; t.sugar += it.sugar; t.fiber += it.fiber;
+  }
+  return t;
+}
+
+// A gentle, non-medical 0–100 "how nourishing" score: protein + fiber help,
+// excess sugar hurts. It's vibes, not nutrition science.
+function nutritionScore(t) {
+  if (!t.kcal) return 0;
+  let s = 45;
+  s += Math.min(25, t.protein * 0.5);
+  s += Math.min(22, t.fiber * 3);
+  s -= Math.min(28, Math.max(0, t.sugar - 12) * 0.9);
+  return Math.max(5, Math.min(99, Math.round(s)));
+}
+function scoreLabel(s) {
+  if (!s) return "no food?";
+  if (s >= 75) return "glowing.";
+  if (s >= 60) return "solid.";
+  if (s >= 42) return "eh, average.";
+  return "beige alert.";
+}
+function scoreClass(s) {
+  if (s >= 60) return "text-primary";
+  if (s >= 42) return "text-tertiary";
+  return "text-error";
+}
+
+// ---- item helpers ----
+function blankItem() {
+  return { name: "", portion: "", kcal: 0, protein: 0, fat: 0, carbs: 0, sugar: 0, fiber: 0, icon: MEAL_ICONS[0] };
+}
+function normItem(x) {
   return {
-    name: d.name || "",
-    kcal: round(d.kcal),
-    protein: round(d.protein_g),
-    fat: round(d.fat_g),
-    carbs: round(d.carbs_g),
-    sugar: round(d.sugar_g),
-    fiber: round(d.fiber_g),
-    icon: d.icon || MEAL_ICONS[0],
-    confidence: d.confidence,
-    note: d.note,
-    serving: d.serving,
+    name: String(x.name || ""),
+    portion: String(x.portion || ""),
+    kcal: round(x.kcal), protein: round(x.protein), fat: round(x.fat),
+    carbs: round(x.carbs), sugar: round(x.sugar), fiber: round(x.fiber),
+    icon: MEAL_ICONS.includes(x.icon) ? x.icon : MEAL_ICONS[0],
   };
+}
+function fromAIItems(data) {
+  const arr = (data && Array.isArray(data.items) ? data.items : []).map((d) => ({
+    name: d.name || "",
+    portion: d.portion || "",
+    kcal: round(d.kcal), protein: round(d.protein_g), fat: round(d.fat_g),
+    carbs: round(d.carbs_g), sugar: round(d.sugar_g), fiber: round(d.fiber_g),
+    icon: d.icon || MEAL_ICONS[0],
+  }));
+  return arr.length ? arr : [blankItem()];
 }
 
 function round(n) {
   const v = Number(n);
   return Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0;
 }
-
-function confClass(c) {
-  if (c === "high") return "bg-tertiary-fixed text-on-tertiary-fixed";
-  if (c === "low") return "bg-error-container text-error";
-  return "bg-surface-container text-on-surface-variant";
+function esc(s) {
+  return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-
 function escAttr(s) {
   return String(s || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }

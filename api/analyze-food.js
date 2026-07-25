@@ -28,43 +28,64 @@ const ICONS = [
   "grocery", "fastfood", "liquor", "cookie",
 ];
 
-const SYSTEM = `You are Poco's food-logging helper — you turn a photo and/or a short description of a meal into a realistic nutrition estimate.
+const SYSTEM = `You are Poco's food-logging helper — you turn a photo and/or a short description of a meal into a realistic, ITEMIZED nutrition estimate.
+
+Break the meal into its distinct components and estimate each one separately. A bowl of ramen with a boiled egg and greens is FOUR items (ramen, egg, bok choy, spring onions), not one.
+
+For each item provide: name, portion (e.g. "1 bowl (~400g)", "2 halves (100g)"), kcal, and macros in grams (protein_g, fat_g, carbs_g, sugar_g, fiber_g), plus the closest "icon" and a "confidence".
 
 Rules:
-- Estimate for the portion actually shown in the image or described in the text. If the amount is unclear, assume a normal single serving and SAY SO in "note".
-- Give your best realistic numbers even when unsure — never refuse or return zeros just because it's ambiguous. Set "confidence" honestly instead.
-- kcal should be roughly consistent with the macros (protein/carbs ≈ 4 kcal/g, fat ≈ 9 kcal/g).
-- Pick the single closest "icon" from the allowed list.
-- "note" is one short, warm line (Poco's voice is gentle and a little playful). Mention any assumption you made about portion size.
-- If the image or text clearly isn't food, still return the object with kcal 0, confidence "low", and a "note" saying it didn't look like food.`;
+- One item per distinct food or drink you can identify. A single simple food is just one item.
+- Estimate for the portion actually shown/described; if the amount is unclear, assume a normal serving.
+- Give your best realistic numbers even when unsure — never refuse or return all-zeros just because it's ambiguous. Set "confidence" honestly instead.
+- For each item, kcal should be roughly protein_g*4 + carbs_g*4 + fat_g*9.
+- "note" is ONE short, warm line about the whole meal (Poco's gentle, playful voice). Mention any portion assumption you made.
+- If it clearly isn't food, return a single item with kcal 0, confidence "low", and a note saying it didn't look like food.`;
 
 // Groq/OpenAI-style models don't take a schema object, so spell it out.
 const SYSTEM_GROQ = `${SYSTEM}
 
-Respond with ONLY a JSON object (no prose, no markdown fences) with exactly these keys:
-  name (string), kcal (integer), protein_g (number), fat_g (number),
-  carbs_g (number), sugar_g (number), fiber_g (number), serving (string),
-  icon (string — MUST be one of: ${ICONS.join(", ")}),
-  confidence ("low" | "medium" | "high"), note (string).`;
+Respond with ONLY a JSON object (no prose, no markdown fences), shaped exactly:
+{
+  "items": [
+    {
+      "name": string, "portion": string, "kcal": integer,
+      "protein_g": number, "fat_g": number, "carbs_g": number,
+      "sugar_g": number, "fiber_g": number,
+      "icon": string (MUST be one of: ${ICONS.join(", ")}),
+      "confidence": "low" | "medium" | "high"
+    }
+  ],
+  "note": string
+}`;
 
 // Gemini structured-output schema (OpenAPI subset: UPPERCASE types).
-const GEMINI_SCHEMA = {
+const ITEM_SCHEMA = {
   type: "OBJECT",
   properties: {
     name: { type: "STRING" },
+    portion: { type: "STRING" },
     kcal: { type: "INTEGER" },
     protein_g: { type: "NUMBER" },
     fat_g: { type: "NUMBER" },
     carbs_g: { type: "NUMBER" },
     sugar_g: { type: "NUMBER" },
     fiber_g: { type: "NUMBER" },
-    serving: { type: "STRING" },
     icon: { type: "STRING", enum: ICONS },
     confidence: { type: "STRING", enum: ["low", "medium", "high"] },
+  },
+  required: ["name", "portion", "kcal", "protein_g", "fat_g", "carbs_g", "sugar_g", "fiber_g", "icon", "confidence"],
+  propertyOrdering: ["name", "portion", "kcal", "protein_g", "fat_g", "carbs_g", "sugar_g", "fiber_g", "icon", "confidence"],
+};
+
+const GEMINI_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    items: { type: "ARRAY", items: ITEM_SCHEMA },
     note: { type: "STRING" },
   },
-  required: ["name", "kcal", "protein_g", "fat_g", "carbs_g", "sugar_g", "fiber_g", "serving", "icon", "confidence", "note"],
-  propertyOrdering: ["name", "kcal", "protein_g", "fat_g", "carbs_g", "sugar_g", "fiber_g", "serving", "icon", "confidence", "note"],
+  required: ["items", "note"],
+  propertyOrdering: ["items", "note"],
 };
 
 function activeProvider() {
