@@ -50,7 +50,8 @@ function renderChoose(ctx) {
         ${icon("mic", "text-primary")}<span class="font-label-bold text-label-bold text-on-surface">Describe it</span>
       </button>
     </div>
-    <input data-file type="file" accept="image/*" capture="environment" class="hidden" />
+    <!-- No capture attr, so the OS picker offers both Camera and Photo Library. -->
+    <input data-file type="file" accept="image/*" class="hidden" />
     <button data-manual class="w-full text-center font-label-bold text-sm text-on-surface-variant py-2 underline decoration-dashed underline-offset-4">or enter it manually</button>
     <button data-cancel class="w-full text-center font-label-bold text-sm text-on-surface-variant py-2 mt-1">Cancel</button>
   `;
