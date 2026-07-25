@@ -40,27 +40,35 @@ function renderChoose(ctx) {
         <p class="font-body-md text-sm text-on-surface-variant">Snap it, say it, or type it.</p>
       </div>
     </div>
-    <div class="flex flex-col gap-3 mb-3">
-      <button data-photo class="chunky-button w-full bg-primary text-on-primary chunky-border card-shadow rounded-[16px] py-4 flex items-center justify-center gap-2">
-        ${icon("photo_camera", "fill-icon")}<span class="font-label-bold text-label-bold">Snap a photo</span>
+    <div class="flex gap-3 mb-3">
+      <button data-camera class="chunky-button flex-1 bg-primary text-on-primary chunky-border card-shadow rounded-[16px] py-4 flex flex-col items-center justify-center gap-1">
+        ${icon("photo_camera", "fill-icon")}<span class="font-label-bold text-label-bold">Camera</span>
       </button>
-      <button data-describe class="chunky-button w-full bg-surface-container chunky-border card-shadow rounded-[16px] py-4 flex items-center justify-center gap-2 hover:bg-secondary-container">
-        ${icon("mic", "text-primary")}<span class="font-label-bold text-label-bold text-on-surface">Describe it</span>
+      <button data-gallery class="chunky-button flex-1 bg-secondary-container chunky-border card-shadow rounded-[16px] py-4 flex flex-col items-center justify-center gap-1">
+        ${icon("photo_library", "text-primary")}<span class="font-label-bold text-label-bold text-on-surface">Gallery</span>
       </button>
     </div>
-    <!-- No capture attr, so the OS picker offers both Camera and Photo Library. -->
-    <input data-file type="file" accept="image/*" class="hidden" />
+    <button data-describe class="chunky-button w-full bg-surface-container chunky-border card-shadow rounded-[16px] py-4 flex items-center justify-center gap-2 hover:bg-secondary-container mb-3">
+      ${icon("mic", "text-primary")}<span class="font-label-bold text-label-bold text-on-surface">Describe it</span>
+    </button>
+    <!-- capture="environment" opens the camera directly; the plain input opens the photo library. -->
+    <input data-file-camera type="file" accept="image/*" capture="environment" class="hidden" />
+    <input data-file-gallery type="file" accept="image/*" class="hidden" />
     <button data-manual class="w-full text-center font-label-bold text-sm text-on-surface-variant py-2 underline decoration-dashed underline-offset-4">or enter it manually</button>
     <button data-cancel class="w-full text-center font-label-bold text-sm text-on-surface-variant py-2 mt-1">Cancel</button>
   `;
   setStage(ctx, html, (el) => {
     el.querySelector("[data-cancel]").addEventListener("click", closeModal);
     el.querySelector("[data-manual]").addEventListener("click", () => renderReview(ctx, [blankItem()], { source: "manual" }));
-    const file = el.querySelector("[data-file]");
-    el.querySelector("[data-photo]").addEventListener("click", () => file.click());
-    file.addEventListener("change", () => {
-      if (file.files && file.files[0]) handlePhoto(ctx, file.files[0]);
-    });
+    const wirePick = (btnSel, inputSel) => {
+      const input = el.querySelector(inputSel);
+      el.querySelector(btnSel).addEventListener("click", () => input.click());
+      input.addEventListener("change", () => {
+        if (input.files && input.files[0]) handlePhoto(ctx, input.files[0]);
+      });
+    };
+    wirePick("[data-camera]", "[data-file-camera]");
+    wirePick("[data-gallery]", "[data-file-gallery]");
     el.querySelector("[data-describe]").addEventListener("click", () => renderDescribe(ctx));
   });
 }
@@ -303,14 +311,16 @@ function macroBar(t) {
 function itemRow(it, i, expanded) {
   if (!expanded) {
     return `
-      <div class="bg-surface-container-lowest rounded-2xl chunky-border p-3 flex items-center gap-3">
-        <div class="w-9 h-9 rounded-full chunky-border bg-surface-container flex items-center justify-center flex-shrink-0">${icon(it.icon || "restaurant", "text-tertiary-container")}</div>
-        <div class="flex-1 min-w-0">
-          <p class="font-label-bold text-label-bold text-on-surface truncate">${esc(it.name) || "(unnamed)"}</p>
-          <p class="text-xs text-on-surface-variant truncate">${it.portion ? esc(it.portion) + " • " : ""}${it.kcal} kcal</p>
-        </div>
-        <button data-expand="${i}" class="chunky-button w-8 h-8 rounded-full chunky-border bg-surface-container flex items-center justify-center">${icon("edit", "text-sm")}</button>
-        <button data-remove-item="${i}" class="chunky-button w-8 h-8 rounded-full chunky-border bg-error-container text-error flex items-center justify-center">${icon("close", "text-sm")}</button>
+      <div class="bg-surface-container-lowest rounded-2xl chunky-border p-3 flex items-center gap-2">
+        <button data-expand="${i}" class="flex items-center gap-3 flex-1 min-w-0 text-left">
+          <div class="w-9 h-9 rounded-full chunky-border bg-surface-container flex items-center justify-center flex-shrink-0">${icon(it.icon || "restaurant", "text-tertiary-container")}</div>
+          <div class="flex-1 min-w-0">
+            <p class="font-label-bold text-label-bold text-on-surface break-words">${esc(it.name) || "(unnamed)"}</p>
+            <p class="text-xs text-on-surface-variant break-words">${it.portion ? esc(it.portion) + " • " : ""}${it.kcal} kcal</p>
+          </div>
+          <span class="material-symbols-outlined text-on-surface-variant text-base flex-shrink-0">edit</span>
+        </button>
+        <button data-remove-item="${i}" class="chunky-button w-8 h-8 rounded-full chunky-border bg-error-container text-error flex items-center justify-center flex-shrink-0">${icon("close", "text-sm")}</button>
       </div>`;
   }
   const macro = (k, lbl) => `<div><input data-field="${k}" data-i="${i}" type="number" min="0" value="${it[k] || ""}" placeholder="0" class="w-full px-1 py-2 rounded-lg chunky-border bg-[#ffeadc] font-body-md text-center text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" /><span class="block text-center text-[10px] text-on-surface-variant mt-0.5">${lbl}</span></div>`;
