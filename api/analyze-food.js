@@ -13,9 +13,12 @@
 export const config = { maxDuration: 30 };
 
 const GROQ_MODEL = process.env.GROQ_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct";
-// Gemini free-tier models, tried in order (quota is granted per model).
-const GEMINI_PREFERRED = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-const GEMINI_MODELS = [...new Set([GEMINI_PREFERRED, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"])];
+// Gemini models, tried in order. Lead with the rolling "-latest" aliases so we
+// don't pin a version Google later retires for new users (older stable names
+// like gemini-2.0-flash / gemini-2.5-flash-lite are already unavailable to new
+// keys). Quota/availability are per-model, so fall through to the next.
+const GEMINI_PREFERRED = process.env.GEMINI_MODEL || "gemini-flash-latest";
+const GEMINI_MODELS = [...new Set([GEMINI_PREFERRED, "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash"])];
 
 // Material Symbol names Poco already ships — keep the model on-palette.
 const ICONS = [
@@ -171,7 +174,9 @@ async function callGemini({ image, text }) {
     lastStatus = r.status;
     lastMsg = `Analysis failed (${r.status})`;
     try { const j = await r.json(); if (j && j.error && j.error.message) lastMsg = j.error.message; } catch { /* keep */ }
-    if (r.status !== 429 && r.status !== 404) break; // only quota/not-found are worth another model
+    // Quota (429), not-found (404), and "model unavailable" (400) are all worth
+    // trying the next model; auth/permission (401/403) are not.
+    if (r.status !== 429 && r.status !== 404 && r.status !== 400) break;
   }
   throw httpError(lastMsg, lastStatus);
 }
