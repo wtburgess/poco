@@ -1,7 +1,7 @@
 // Weekly habits view — toggle grid, streaks, add/remove habit, progress tree.
 import {
-  getState, weekKeys, WEEKDAY_LABELS, toggleHabit, habitStreak,
-  addHabit, removeHabit, addPoints, todayKey,
+  getState, weekKeys, WEEKDAY_LABELS, setHabitDay, habitDayStatus, habitStreak,
+  addHabit, removeHabit, addPoints, todayKey, tagDay, getTodayCheckin,
 } from "../store.js";
 import { icon, pocoImg, shell, toast, openModal, closeModal } from "../ui.js";
 
@@ -19,9 +19,10 @@ export function renderHabits(root) {
   const today = todayKey();
   const todayIdx = keys.indexOf(today);
 
+  // Floor days count half toward progress — kept the streak, but not the full target.
   const totalCells = habits.length * 7;
   const doneCells = habits.reduce(
-    (s, h) => s + keys.filter((k) => h.checks[k]).length, 0
+    (s, h) => s + keys.reduce((n, k) => n + (h.checks[k] ? 1 : h.floorChecks?.[k] ? 0.5 : 0), 0), 0
   );
   const progress = totalCells ? Math.round((doneCells / totalCells) * 100) : 0;
 
@@ -51,6 +52,12 @@ export function renderHabits(root) {
       </div>
     </div>
 
+    <p class="flex items-center justify-center gap-4 text-xs font-label-bold text-on-surface-variant -mt-1">
+      <span class="flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-primary chunky-border inline-block"></span> Target hit</span>
+      <span class="flex items-center gap-1"><span class="w-4 h-4 rounded-full bg-tertiary-fixed chunky-border inline-block"></span> Floor (streak safe)</span>
+      <span>tap to cycle</span>
+    </p>
+
     <div class="bg-surface rounded-xl chunky-border card-shadow p-6 mt-2 flex items-center gap-6 relative overflow-hidden">
       <div class="absolute -right-4 -top-4 w-24 h-24 bg-primary-fixed/30 rounded-full blur-xl"></div>
       <div class="w-24 h-32 relative flex-shrink-0 bg-surface-container-low rounded-t-full rounded-b-xl chunky-border overflow-hidden flex items-end justify-center pb-2">
@@ -73,13 +80,17 @@ export function renderHabits(root) {
 
 function habitRow(h, keys, today) {
   const streak = habitStreak(h);
+  const hint = h.target ? `${h.target}${h.floor ? ` · floor: ${h.floor}` : ""}` : (h.floor ? `floor: ${h.floor}` : "");
   return `<div class="flex items-center" data-habit-row="${h.id}">
     <div class="w-32 flex-shrink-0 bg-${h.color} chunky-border leaf-shape px-3 py-2 flex items-center gap-2 group relative">
       ${icon(h.icon, "text-sm")}
-      <span class="font-label-bold text-label-bold truncate flex-1">${h.name}</span>
+      <span class="flex-1 min-w-0">
+        <span class="font-label-bold text-label-bold truncate block leading-tight">${h.name}</span>
+        ${hint ? `<span class="text-[10px] leading-tight opacity-70 truncate block">${hint}</span>` : ""}
+      </span>
       <button data-remove-habit="${h.id}" class="opacity-0 group-hover:opacity-100 transition-opacity">${icon("close", "text-sm")}</button>
     </div>
-    <div class="flex-1 flex justify-between px-2">
+    <div class="flex-1 flex justify-between px-2 items-center">
       ${keys.map((k) => cell(h, k, k === today)).join("")}
     </div>
     <div class="w-16 flex-shrink-0 flex items-center justify-center gap-1">
@@ -89,14 +100,23 @@ function habitRow(h, keys, today) {
   </div>`;
 }
 
+// Tri-state cell: none → done (target) → floor (minimum) → none.
 function cell(h, dateKey, isToday) {
-  const on = !!h.checks[dateKey];
-  return `<button data-toggle="${h.id}" data-date="${dateKey}"
-    class="toy-btn w-8 h-8 rounded-full chunky-border flex items-center justify-center check-blob shadow-sm ${
-      on ? "bg-primary" : "bg-[#ffeadc]"
-    } ${isToday ? "ring-2 ring-primary ring-offset-1 ring-offset-surface" : ""}">
-    ${on ? icon("eco", "text-white text-sm fill-icon") : ""}
-  </button>`;
+  const status = habitDayStatus(h, dateKey);
+  const style = status === "done"
+    ? "bg-primary"
+    : status === "floor"
+    ? "bg-tertiary-fixed"
+    : "bg-[#ffeadc]";
+  const glyph = status === "done"
+    ? icon("eco", "text-white text-sm fill-icon")
+    : status === "floor"
+    ? icon("trending_flat", "text-on-tertiary-fixed text-sm")
+    : "";
+  return `<button data-cell="${h.id}" data-date="${dateKey}"
+    class="toy-btn w-8 h-8 rounded-full chunky-border flex items-center justify-center check-blob shadow-sm ${style} ${
+      isToday ? "ring-2 ring-primary ring-offset-1 ring-offset-surface" : ""
+    }">${glyph}</button>`;
 }
 
 function progressTitle(p) {
@@ -106,16 +126,28 @@ function progressTitle(p) {
   return "Just Planted";
 }
 
+const NEXT_STATUS = { none: "done", done: "floor", floor: "none" };
+
 function wire(root) {
-  root.querySelectorAll("[data-toggle]").forEach((b) =>
+  root.querySelectorAll("[data-cell]").forEach((b) =>
     b.addEventListener("click", () => {
-      const wasOn = b.classList.contains("bg-primary");
-      toggleHabit(b.dataset.toggle, b.dataset.date);
-      if (!wasOn) {
+      const id = b.dataset.cell, date = b.dataset.date;
+      const h = getState().habits.find((x) => x.id === id);
+      const cur = habitDayStatus(h, date);
+      const next = NEXT_STATUS[cur];
+      setHabitDay(id, date, next);
+      if (cur === "none" && next === "done") {
         addPoints(3);
         toast("Nice. +3 🌿", "eco");
+      } else if (next === "floor") {
+        toast("Floor counts. Streak safe 🌿", "trending_flat");
       }
-      renderHabits(root);
+      // On completing today (target or floor), grab a quick 1-tap context tag.
+      if (date === todayKey() && next !== "none" && !getTodayCheckin().energy) {
+        microTag(() => renderHabits(root));
+      } else {
+        renderHabits(root);
+      }
     })
   );
   root.querySelectorAll("[data-remove-habit]").forEach((b) =>
@@ -127,12 +159,64 @@ function wire(root) {
   root.querySelector("[data-add-habit]").addEventListener("click", () => habitModal(() => renderHabits(root)));
 }
 
+// Contextual micro-tagging: fast 1-tap energy + vibe, saved to today's log.
+function microTag(onDone) {
+  const day = todayKey();
+  openModal(
+    `
+    <h3 class="font-headline-md text-headline-md text-on-surface mb-1">How'd that feel?</h3>
+    <p class="font-body-md text-sm text-on-surface-variant mb-4">One tap each — Poco's building your pattern map.</p>
+    <p class="font-label-bold text-label-bold text-on-surface-variant mb-2">Energy</p>
+    <div class="flex gap-2 mb-4" data-energy>
+      <button data-tag="energy:high" class="chunky-button flex-1 py-3 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold">⚡ High</button>
+      <button data-tag="energy:low" class="chunky-button flex-1 py-3 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold">🔋 Low</button>
+    </div>
+    <p class="font-label-bold text-label-bold text-on-surface-variant mb-2">Mood</p>
+    <div class="flex gap-2 mb-6" data-vibe>
+      <button data-tag="vibe:calm" class="chunky-button flex-1 py-3 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold">🟢 Calm</button>
+      <button data-tag="vibe:stressed" class="chunky-button flex-1 py-3 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold">🔴 Stressed</button>
+    </div>
+    <button data-done class="chunky-button w-full py-3 rounded-full chunky-border bg-primary text-on-primary font-label-bold text-label-bold card-shadow">Done</button>
+  `,
+    {
+      onMount: (mroot) => {
+        mroot.querySelectorAll("[data-tag]").forEach((b) =>
+          b.addEventListener("click", () => {
+            const [k, v] = b.dataset.tag.split(":");
+            tagDay(day, { [k]: v });
+            // Highlight the chosen chip within its own row.
+            b.parentElement.querySelectorAll("[data-tag]").forEach((x) => {
+              const on = x === b;
+              x.className = `chunky-button flex-1 py-3 rounded-full chunky-border font-label-bold text-label-bold ${on ? "bg-on-surface text-surface" : "bg-surface-container"}`;
+            });
+          })
+        );
+        mroot.querySelector("[data-done]").addEventListener("click", () => {
+          closeModal();
+          if (onDone) onDone();
+        });
+      },
+    }
+  );
+}
+
 function habitModal(onDone) {
   openModal(
     `
     <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Plant a habit</h3>
     <label class="block font-label-bold text-label-bold text-on-surface-variant mb-1">Name</label>
     <input data-field="name" type="text" placeholder="e.g. Stretch" class="w-full mb-4 px-4 py-3 rounded-lg chunky-border bg-[#ffeadc] font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
+    <div class="flex gap-3 mb-4">
+      <div class="flex-1">
+        <label class="block font-label-bold text-label-bold text-on-surface-variant mb-1">Target 🎯</label>
+        <input data-field="target" type="text" placeholder="30 min" class="w-full px-3 py-2.5 rounded-lg chunky-border bg-[#ffeadc] font-body-md text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
+      </div>
+      <div class="flex-1">
+        <label class="block font-label-bold text-label-bold text-on-surface-variant mb-1">Floor 🛟</label>
+        <input data-field="floor" type="text" placeholder="1 page" class="w-full px-3 py-2.5 rounded-lg chunky-border bg-[#ffeadc] font-body-md text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
+      </div>
+    </div>
+    <p class="text-xs text-on-surface-variant mb-4 -mt-1 flex items-center gap-1">${icon("info", "text-sm")} The floor is your bad-day minimum — hitting it keeps the streak.</p>
     <label class="block font-label-bold text-label-bold text-on-surface-variant mb-2">Icon</label>
     <div class="flex flex-wrap gap-2 mb-4" data-icons>
       ${HABIT_ICONS.map((ic, i) => `<button data-icon="${ic}" class="chunky-button w-11 h-11 rounded-full chunky-border flex items-center justify-center ${i === 0 ? "bg-primary text-on-primary" : "bg-surface-container"}">${icon(ic)}</button>`).join("")}
@@ -175,7 +259,11 @@ function habitModal(onDone) {
             mroot.querySelector("[data-field='name']").focus();
             return;
           }
-          addHabit({ name, icon: selIcon, color: selColor });
+          addHabit({
+            name, icon: selIcon, color: selColor,
+            target: mroot.querySelector("[data-field='target']").value.trim(),
+            floor: mroot.querySelector("[data-field='floor']").value.trim(),
+          });
           closeModal();
           toast(`${name} planted 🌱`);
           if (onDone) onDone();

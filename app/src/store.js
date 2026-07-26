@@ -86,10 +86,13 @@ function seed() {
         { id: mkid(), name: "Turkey Sandwich", kcal: 420, time: "12:45 PM", icon: "lunch_dining" },
       ],
     },
+    // Habits track a Target (ceiling) and an Emergency Floor. Hitting the floor
+    // keeps a streak alive — the anti "all-or-nothing" mechanic. floorChecks holds
+    // floor-only days, keyed by date, parallel to `checks` (the full-target days).
     habits: [
-      { id: mkid(), name: "Meditate", icon: "self_improvement", color: "primary-fixed", checks: meditateChecks },
-      { id: mkid(), name: "Read", icon: "menu_book", color: "secondary-fixed", checks: readChecks },
-      { id: mkid(), name: "Walk", icon: "directions_walk", color: "tertiary-fixed", checks: walkChecks },
+      { id: mkid(), name: "Meditate", icon: "self_improvement", color: "primary-fixed", target: "10 min", floor: "3 breaths", checks: meditateChecks, floorChecks: {} },
+      { id: mkid(), name: "Read", icon: "menu_book", color: "secondary-fixed", target: "20 min", floor: "1 page", checks: readChecks, floorChecks: {} },
+      { id: mkid(), name: "Walk", icon: "directions_walk", color: "tertiary-fixed", target: "8k steps", floor: "round the block", checks: walkChecks, floorChecks: {} },
     ],
   };
 }
@@ -123,6 +126,8 @@ function migrate(s) {
   s.settings = { ...base.settings, ...(s.settings || {}) };
   s.cosmetics = { ...base.cosmetics, ...(s.cosmetics || {}) };
   s.review = { ...base.review, ...(s.review || {}) };
+  // Backfill floor tracking on habits saved before the floor/ceiling feature.
+  (s.habits || []).forEach((h) => { if (!h.floorChecks) h.floorChecks = {}; });
   if (!s.lastSeen) s.lastSeen = todayKey();
   // Treat any past check-in as "logged" so existing users keep their streak.
   const today = todayKey();
@@ -260,18 +265,42 @@ export function getTodayMeals() {
   return state.meals[todayKey()] || [];
 }
 
+// Set a habit's status for a day: "done" (full target), "floor" (minimum), or
+// "none". Floor and done are mutually exclusive on a given day.
+export function setHabitDay(habitId, dateKey, status) {
+  const h = state.habits.find((x) => x.id === habitId);
+  if (!h) return;
+  if (!h.floorChecks) h.floorChecks = {};
+  h.checks[dateKey] = status === "done";
+  h.floorChecks[dateKey] = status === "floor";
+  emit();
+  cloudSync("habitcheck", { habitId, date: dateKey, on: status === "done", floor: status === "floor" });
+}
+// Kept for callers that only care about the full-target toggle.
 export function toggleHabit(habitId, dateKey) {
   const h = state.habits.find((x) => x.id === habitId);
   if (!h) return;
-  h.checks[dateKey] = !h.checks[dateKey];
-  emit();
-  cloudSync("habitcheck", { habitId, date: dateKey, on: !!h.checks[dateKey] });
+  setHabitDay(habitId, dateKey, h.checks[dateKey] ? "none" : "done");
 }
-export function addHabit({ name, icon, color }) {
-  const h = { id: mkid(), name, icon, color, checks: {} };
+// The status of a habit on a day: "done" | "floor" | "none".
+export function habitDayStatus(h, dateKey) {
+  if (h.checks[dateKey]) return "done";
+  if (h.floorChecks && h.floorChecks[dateKey]) return "floor";
+  return "none";
+}
+export function addHabit({ name, icon, color, target, floor }) {
+  const h = { id: mkid(), name, icon, color, target: target || "", floor: floor || "", checks: {}, floorChecks: {} };
   state.habits.push(h);
   emit();
   cloudSync("habit.add", { habit: h, order: state.habits.length - 1 });
+}
+
+// Contextual micro-tags (energy / vibe) attach to a day's check-in, so the stats
+// view can surface them as markers and use them in correlations.
+export function tagDay(dateKey, patch) {
+  state.checkins[dateKey] = { ...DEFAULT_CHECKIN, ...(state.checkins[dateKey] || {}), ...patch };
+  emit();
+  cloudSync("checkin", { date: dateKey, c: state.checkins[dateKey] });
 }
 export function removeHabit(id) {
   state.habits = state.habits.filter((h) => h.id !== id);
@@ -279,13 +308,16 @@ export function removeHabit(id) {
   cloudSync("habit.remove", { id });
 }
 
-// Current streak = consecutive completed days ending today (or yesterday if today not done).
+// Current streak = consecutive KEPT days ending today (or yesterday if today's not
+// done yet). Hitting the floor counts as kept — that's the whole point of the floor.
 export function habitStreak(habit) {
+  const kept = (o) => {
+    const k = dayKeyOffset(o);
+    return !!(habit.checks[k] || (habit.floorChecks && habit.floorChecks[k]));
+  };
   let streak = 0;
-  let offset = 0;
-  // Allow today to be incomplete without breaking a streak earned through yesterday.
-  if (!habit.checks[dayKeyOffset(0)]) offset = -1;
-  while (habit.checks[dayKeyOffset(offset)]) {
+  let offset = kept(0) ? 0 : -1; // today may still be blank without breaking the run
+  while (kept(offset)) {
     streak++;
     offset--;
   }
