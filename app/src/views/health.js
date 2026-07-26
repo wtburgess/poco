@@ -1,20 +1,19 @@
-// Health — a dual-layer Stats & Input view.
-// Charts you can scrub: tap any day to pull its raw logs up in the breakdown below.
-// A coach's takeaway sits on top, auto-computed correlations follow, and three lenses
-// (Coaching · Consistency · Raw Data) shift what the screen emphasises.
+// Health — a scrubbable Stats & Input view.
+// Top to bottom: a coach's takeaway, auto-computed correlations, three trend charts
+// you can scrub (tap any day → its raw logs appear in the breakdown), a readable
+// "Your reflections" log of gratitude + one-liners, then the raw entry stream.
 import {
-  getState, weekKeys, WEEKDAY_LABELS, todayKey, habitStreak,
+  getState, weekKeys, WEEKDAY_LABELS, todayKey,
 } from "../store.js";
 import { icon, pocoImg, shell } from "../ui.js";
 
 const MOOD_WORDS = ["rough", "meh", "okay", "good", "glowing"];
 
-// Session view-state: which lens, and which day is scrubbed into the breakdown.
-let lens = "coaching"; // "coaching" | "consistency" | "raw"
+// Session view-state: which day is scrubbed into the breakdown.
 let selectedKey = null;
 
 export function renderHealth(root) {
-  const { checkins, habits } = getState();
+  const { checkins } = getState();
   const keys = weekKeys();
   const today = todayKey();
   // Default the scrubbed day to today if it exists this week, else the latest logged day.
@@ -32,11 +31,8 @@ export function renderHealth(root) {
       <p class="font-body-lg text-body-lg text-on-surface-variant">Tap any day to see what you logged.</p>
     </div>
 
-    ${lensToggle()}
-
-    ${lens !== "raw" ? coachCard() : ""}
-    ${lens === "coaching" ? correlationCarousel() : ""}
-    ${lens === "consistency" ? consistencyCard(habits, keys) : ""}
+    ${coachCard()}
+    ${correlationCarousel()}
 
     ${trendCard("Movement", fmt(avgOf(stepsSeries), 0), "steps avg", "text-primary", "bg-primary-fixed", "directions_run", "#546346", "#98a886", stepsSeries, 12000, keys, checkins)}
     ${trendCard("Sleep", sleepLabel(avgOf(sleepSeries)), "avg", "text-inverse-surface", "bg-inverse-on-surface", "bedtime", "#3f2d1e", "#c8c7bc", sleepSeries, 10, keys, checkins)}
@@ -44,27 +40,13 @@ export function renderHealth(root) {
 
     ${dayBreakdown()}
 
-    ${lens === "raw" ? feed() : ""}
+    ${journal()}
+    ${feed()}
     <div class="h-6"></div>
   `;
 
   root.innerHTML = shell("health", body);
   wire(root);
-}
-
-// ---- Lens toggle ----
-const LENSES = [
-  { id: "coaching", label: "Coaching", icon: "psychology" },
-  { id: "consistency", label: "Consistency", icon: "calendar_month" },
-  { id: "raw", label: "Raw Data", icon: "table_rows" },
-];
-function lensToggle() {
-  return `
-    <div class="flex gap-1 p-1 bg-surface-container rounded-full chunky-border" data-lenses>
-      ${LENSES.map((l) => `<button data-lens="${l.id}" class="chunky-button flex-1 px-2 py-2 rounded-full text-xs font-label-bold flex items-center justify-center gap-1 ${
-        l.id === lens ? "bg-on-surface text-surface" : "text-on-surface-variant"
-      }">${icon(l.icon, "text-sm")} ${l.label}</button>`).join("")}
-    </div>`;
 }
 
 // ---- Coach's summary: one actionable takeaway ----
@@ -101,26 +83,6 @@ function insightPlaceholder(msg) {
   return `<div class="bg-surface-container-lowest chunky-border card-shadow rounded-[20px] p-5 flex items-center gap-3">
     <span class="text-2xl">🌱</span><p class="font-body-md text-body-md text-on-surface-variant">${msg}</p>
   </div>`;
-}
-
-// ---- Consistency lens: per-habit weekly completion ----
-function consistencyCard(habits, keys) {
-  if (!habits.length) return insightPlaceholder("No habits yet — plant a few to track consistency.");
-  return `
-    <div class="bg-surface-container-lowest chunky-border card-shadow rounded-[20px] p-5 flex flex-col gap-3">
-      <p class="font-label-bold text-[11px] text-on-surface-variant uppercase tracking-wide">This week's consistency</p>
-      ${habits.map((h) => {
-        const done = keys.filter((k) => h.checks[k]).length;
-        const p = Math.round((done / keys.length) * 100);
-        return `<div>
-          <div class="flex justify-between items-center mb-1">
-            <span class="font-label-bold text-label-bold text-on-surface flex items-center gap-1.5">${icon(h.icon, "text-sm")} ${h.name}</span>
-            <span class="font-label-bold text-label-bold text-on-surface-variant">${done}/${keys.length} · ${habitStreak(h)}🔥</span>
-          </div>
-          <div class="h-3 bg-[#ffeadc] rounded-full chunky-border overflow-hidden"><div class="h-full bg-primary rounded-full" style="width:${p}%"></div></div>
-        </div>`;
-      }).join("")}
-    </div>`;
 }
 
 // ---- Trend card with a scrubbable day strip + event markers ----
@@ -192,30 +154,34 @@ function statChip(ic, text) {
   return `<span class="inline-flex items-center gap-1 bg-surface-container px-3 py-1.5 rounded-full chunky-border font-label-bold text-label-bold text-on-surface">${icon(ic, "text-sm")} ${text}</span>`;
 }
 
-// ---- Filterable Input Feed ----
-const FEED_FILTERS = [
-  { id: "all", label: "All" },
-  { id: "notes", label: "Notes" },
-  { id: "gratitude", label: "Gratitude" },
-  { id: "logged", label: "Check-ins" },
-];
-let feedFilter = "all";
-function feed() {
+// ---- Your reflections: an easy, readable log of gratitude + one-liners ----
+function journal() {
   const { checkins } = getState();
   const rows = Object.keys(checkins).sort().reverse()
     .map((k) => ({ k, c: checkins[k] }))
-    .filter(({ c }) => {
-      if (feedFilter === "notes") return !!c.note;
-      if (feedFilter === "gratitude") return !!c.gratitude;
-      if (feedFilter === "logged") return !!c.logged;
-      return true;
-    });
+    .filter(({ c }) => c && (c.gratitude || c.note));
   return `
     <div class="flex flex-col gap-2">
-      <div class="flex gap-2 flex-wrap" data-feed-filters>
-        ${FEED_FILTERS.map((f) => `<button data-filter="${f.id}" class="chunky-button px-3 py-1.5 rounded-full chunky-border text-xs font-label-bold ${f.id === feedFilter ? "bg-on-surface text-surface" : "bg-surface-container-lowest text-on-surface"}">${f.label}</button>`).join("")}
-      </div>
-      ${rows.length ? rows.map(feedRow).join("") : insightPlaceholder("Nothing matches this filter yet.")}
+      <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2 mt-3">${icon("auto_stories", "text-primary fill-icon")} Your reflections</h2>
+      ${rows.length ? rows.map(journalRow).join("") : insightPlaceholder("Your gratitude notes and one-liners will collect here — jot one on today's check-in.")}
+    </div>`;
+}
+function journalRow({ k, c }) {
+  return `<div class="bg-surface-container-lowest chunky-border card-shadow rounded-2xl p-4">
+    <p class="font-label-bold text-[11px] text-on-surface-variant uppercase tracking-wide mb-1">${prettyDate(k)}</p>
+    ${c.gratitude ? `<p class="font-body-md text-body-md text-on-surface mb-1">🙏 ${esc(c.gratitude)}</p>` : ""}
+    ${c.note ? `<p class="font-body-lg text-body-lg text-on-surface italic">"${esc(c.note)}"</p>` : ""}
+  </div>`;
+}
+
+// ---- Raw data: the full entry stream, always at the bottom ----
+function feed() {
+  const { checkins } = getState();
+  const rows = Object.keys(checkins).sort().reverse().map((k) => ({ k, c: checkins[k] })).filter(({ c }) => c);
+  return `
+    <div class="flex flex-col gap-2">
+      <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2 mt-3">${icon("table_rows", "text-primary")} All entries</h2>
+      ${rows.length ? rows.map(feedRow).join("") : insightPlaceholder("No entries yet.")}
     </div>`;
 }
 function feedRow({ k, c }) {
@@ -370,14 +336,8 @@ function esc(s) {
 }
 
 function wire(root) {
-  root.querySelectorAll("[data-lens]").forEach((b) =>
-    b.addEventListener("click", () => { lens = b.dataset.lens; renderHealth(root); })
-  );
   // Scrub a day — from any chart strip or the feed.
   root.querySelectorAll("[data-day]").forEach((b) =>
     b.addEventListener("click", () => { selectedKey = b.dataset.day; renderHealth(root); })
-  );
-  root.querySelectorAll("[data-filter]").forEach((b) =>
-    b.addEventListener("click", () => { feedFilter = b.dataset.filter; renderHealth(root); })
   );
 }

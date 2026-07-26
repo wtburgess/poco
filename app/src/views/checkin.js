@@ -206,6 +206,22 @@ function refreshHero(root, name) {
   if (heroEl) heroEl.outerHTML = heroSection(name, currentMode());
 }
 
+// Showing up shouldn't need a second deliberate tap: the first meaningful log of
+// the day counts it (awards + celebrates once). The "Send it" button stays as a
+// manual option for when there's nothing to change. Returns true if it committed
+// (and re-rendered), so callers can stop their own DOM updates.
+function maybeAutoCommit(root, name) {
+  if (isCheckinLoggedToday()) return false;
+  const res = commitCheckin();
+  celebrate();
+  toast(
+    res.milestone ? `🎉 ${res.streak}-day milestone! +${res.awarded} 🌿` : `Logged! ${res.streak}-day streak · +${res.awarded} 🌿`,
+    res.milestone ? "celebration" : "local_fire_department"
+  );
+  renderCheckin(root, { name });
+  return true;
+}
+
 // ---- Expanded section cards ----
 function sectionCard(s, c, meals) {
   switch (s.id) {
@@ -400,6 +416,7 @@ function wire(root, name) {
       let v = +(c.sleepHours + parseFloat(b.dataset.sleep)).toFixed(1);
       v = Math.max(0, Math.min(14, v));
       saveCheckin({ sleepHours: v });
+      if (maybeAutoCommit(root, name)) return;
       root.querySelector("[data-sleep-value]").textContent = v;
       refreshHero(root, name);
     })
@@ -410,6 +427,7 @@ function wire(root, name) {
     b.addEventListener("click", () => {
       const q = +b.dataset.quality;
       saveCheckin({ sleepQuality: q });
+      if (maybeAutoCommit(root, name)) return;
       root.querySelectorAll("[data-quality]").forEach((el, i) => {
         el.className = `material-symbols-outlined ${i === q ? "text-tertiary-container fill-icon" : "text-outline"}`;
       });
@@ -427,9 +445,10 @@ function wire(root, name) {
     if (!n || n <= 0) return;
     const total = getTodayCheckin().steps + n;
     saveCheckin({ steps: total });
-    root.querySelector("[data-steps]").textContent = total.toLocaleString();
     stepInput.value = "";
     toast(`+${n.toLocaleString()} steps`, "directions_walk");
+    if (maybeAutoCommit(root, name)) return;
+    root.querySelector("[data-steps]").textContent = total.toLocaleString();
   };
   root.querySelector("[data-add-steps]")?.addEventListener("click", addSteps);
   stepInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") addSteps(); });
@@ -437,9 +456,11 @@ function wire(root, name) {
   // End of the day — grateful-for + one line a day, saved on change.
   root.querySelector("[data-gratitude]")?.addEventListener("change", (e) => {
     saveCheckin({ gratitude: e.target.value.trim() });
+    maybeAutoCommit(root, name);
   });
   root.querySelector("[data-note]")?.addEventListener("change", (e) => {
     saveCheckin({ note: e.target.value.trim() });
+    maybeAutoCommit(root, name);
   });
 
   // Food quick log
@@ -469,6 +490,7 @@ function wireMood(root, name) {
     b.addEventListener("click", () => {
       const mood = +b.dataset.mood;
       saveCheckin({ mood });
+      if (maybeAutoCommit(root, name)) return;
       const rowEl = root.querySelector("[data-mood-row]");
       rowEl.innerHTML = MOODS.map((m, i) => moodButton(m, i, mood)).join("");
       wireMood(root, name);

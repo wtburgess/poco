@@ -58,6 +58,8 @@ export function renderHabits(root) {
       <span>tap to cycle</span>
     </p>
 
+    ${energyPrompt()}
+
     <div class="bg-surface rounded-xl chunky-border card-shadow p-6 mt-2 flex items-center gap-6 relative overflow-hidden">
       <div class="absolute -right-4 -top-4 w-24 h-24 bg-primary-fixed/30 rounded-full blur-xl"></div>
       <div class="w-24 h-32 relative flex-shrink-0 bg-surface-container-low rounded-t-full rounded-b-xl chunky-border overflow-hidden flex items-end justify-center pb-2">
@@ -142,12 +144,16 @@ function wire(root) {
       } else if (next === "floor") {
         toast("Floor counts. Streak safe 🌿", "trending_flat");
       }
-      // On completing today (target or floor), grab a quick 1-tap context tag.
-      if (date === todayKey() && next !== "none" && !getTodayCheckin().energy) {
-        microTag(() => renderHabits(root));
-      } else {
-        renderHabits(root);
-      }
+      // Completing a habit surfaces an opt-in energy chip (below) — no interrupting popup.
+      renderHabits(root);
+    })
+  );
+  // Opt-in energy tag — a chip, not a modal. Appears once/day after a habit is done.
+  root.querySelectorAll("[data-energy-tag]").forEach((b) =>
+    b.addEventListener("click", () => {
+      tagDay(todayKey(), { energy: b.dataset.energyTag });
+      toast(`Energy: ${b.dataset.energyTag} ⚡`, "bolt");
+      renderHabits(root);
     })
   );
   root.querySelectorAll("[data-remove-habit]").forEach((b) =>
@@ -159,39 +165,21 @@ function wire(root) {
   root.querySelector("[data-add-habit]").addEventListener("click", () => habitModal(() => renderHabits(root)));
 }
 
-// Contextual micro-tagging: fast 1-tap energy + vibe, saved to today's log.
-function microTag(onDone) {
-  const day = todayKey();
-  openModal(
-    `
-    <h3 class="font-headline-md text-headline-md text-on-surface mb-1">How was your energy?</h3>
-    <p class="font-body-md text-sm text-on-surface-variant mb-4">One tap — Poco's building your pattern map.</p>
-    <div class="flex gap-2 mb-6" data-energy>
-      <button data-tag="energy:high" class="chunky-button flex-1 py-3 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold">⚡ High</button>
-      <button data-tag="energy:low" class="chunky-button flex-1 py-3 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold">🔋 Low</button>
-    </div>
-    <button data-done class="chunky-button w-full py-3 rounded-full chunky-border bg-primary text-on-primary font-label-bold text-label-bold card-shadow">Done</button>
-  `,
-    {
-      onMount: (mroot) => {
-        mroot.querySelectorAll("[data-tag]").forEach((b) =>
-          b.addEventListener("click", () => {
-            const [k, v] = b.dataset.tag.split(":");
-            tagDay(day, { [k]: v });
-            // Highlight the chosen chip within its own row.
-            b.parentElement.querySelectorAll("[data-tag]").forEach((x) => {
-              const on = x === b;
-              x.className = `chunky-button flex-1 py-3 rounded-full chunky-border font-label-bold text-label-bold ${on ? "bg-on-surface text-surface" : "bg-surface-container"}`;
-            });
-          })
-        );
-        mroot.querySelector("[data-done]").addEventListener("click", () => {
-          closeModal();
-          if (onDone) onDone();
-        });
-      },
-    }
-  );
+// Opt-in energy tag: a slim inline chip shown once a day, only after at least one
+// habit is done and today's energy isn't set yet. No modal, no interruption.
+function energyPrompt() {
+  const today = todayKey();
+  if (getTodayCheckin().energy) return "";
+  const anyDone = getState().habits.some((h) => habitDayStatus(h, today) !== "none");
+  if (!anyDone) return "";
+  return `
+    <div class="bg-surface-container-lowest chunky-border card-shadow rounded-2xl px-4 py-3 flex items-center gap-3 flex-wrap -mt-1">
+      <span class="font-label-bold text-label-bold text-on-surface flex items-center gap-1">${icon("bolt", "text-sm text-primary fill-icon")} Energy today?</span>
+      <div class="flex gap-2 flex-1 justify-end">
+        <button data-energy-tag="high" class="chunky-button px-3 py-1.5 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold">⚡ High</button>
+        <button data-energy-tag="low" class="chunky-button px-3 py-1.5 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold">🔋 Low</button>
+      </div>
+    </div>`;
 }
 
 function habitModal(onDone) {
