@@ -8,6 +8,7 @@ import {
 } from "../notify.js";
 import { enableReminders, disableReminders, updateReminderTime } from "../webpush.js";
 import { isCloud, signOut } from "../supabase.js";
+import { connectFitbit, disconnectFitbit } from "../health-sync.js";
 
 export function renderSettings(root) {
   const { profile, goals, settings, points } = getState();
@@ -48,7 +49,7 @@ export function renderSettings(root) {
     <section class="flex flex-col gap-unit">
       <h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2 ml-2 mt-2">${icon("apps", "text-secondary fill-icon")} Connected Apps</h3>
       <div class="bg-surface-container-lowest wobbly-border chunky-border card-shadow p-2">
-        ${toggleRow("healthSync", "Health Sync", "monitor_heart", settings.healthSync, true)}
+        ${fitbitRow(settings)}
         ${toggleRow("nutritionTracker", "Nutrition Tracker", "restaurant_menu", settings.nutritionTracker, false)}
       </div>
     </section>
@@ -126,6 +127,26 @@ function goalRow(key, label, valueText, ic, iconColor, bg, border) {
   </button>`;
 }
 
+// Real Fitbit link — connect (OAuth) or disconnect, with last-sync status.
+function fitbitRow(settings) {
+  const connected = !!settings.healthSync;
+  const last = settings.fitbitLastSync
+    ? new Date(settings.fitbitLastSync).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    : null;
+  return `<div class="flex items-center justify-between p-4 border-b border-outline-variant/50 border-dashed">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center chunky-border">${icon("monitor_heart", `${connected ? "text-primary" : "text-on-surface"} fill-icon`)}</div>
+      <div>
+        <p class="font-label-bold text-label-bold text-on-surface">Fitbit · steps & sleep</p>
+        <p class="text-xs text-on-surface-variant">${connected ? (last ? `Synced ${last}` : "Connected") : "Sync your real steps & sleep"}</p>
+      </div>
+    </div>
+    ${connected
+      ? `<button data-fitbit-disconnect class="chunky-button px-3 py-2 rounded-full chunky-border bg-surface-container font-label-bold text-xs text-on-surface">Disconnect</button>`
+      : `<button data-fitbit-connect class="chunky-button px-3 py-2 rounded-full chunky-border card-shadow bg-primary text-on-primary font-label-bold text-xs flex items-center gap-1">${icon("link", "text-sm")} Connect</button>`}
+  </div>`;
+}
+
 function toggleRow(key, label, ic, checked, border) {
   return `<div class="flex items-center justify-between p-4 ${border ? "border-b border-outline-variant/50 border-dashed" : ""}">
     <div class="flex items-center gap-3">
@@ -161,6 +182,14 @@ function wire(root) {
       label.className = `toggle-label block overflow-hidden h-7 rounded-full ${cb.checked ? "bg-primary" : "bg-surface-dim"} chunky-border cursor-pointer transition-colors duration-200`;
     })
   );
+
+  // Fitbit connect / disconnect
+  root.querySelector("[data-fitbit-connect]")?.addEventListener("click", () => connectFitbit());
+  root.querySelector("[data-fitbit-disconnect]")?.addEventListener("click", async () => {
+    await disconnectFitbit();
+    toast("Fitbit disconnected", "link_off");
+    renderSettings(root);
+  });
 
   // Edit goals
   root.querySelectorAll("[data-goal]").forEach((b) =>

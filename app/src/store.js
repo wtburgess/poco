@@ -54,7 +54,7 @@ function seed() {
       sleepHours: 8.5,
     },
     settings: {
-      healthSync: true,
+      healthSync: false, // true only once Fitbit is actually connected
       nutritionTracker: false,
       reminderEnabled: false,
       reminderTime: "08:00",

@@ -10,6 +10,7 @@ import {
 import { icon, pocoImg, toast, shell, celebrate } from "../ui.js";
 import { heroState, doneTap } from "../poco.js";
 import { logBite } from "./logfood.js";
+import { syncHealth } from "../health-sync.js";
 
 const MOODS = [
   "sentiment_very_dissatisfied",
@@ -281,7 +282,7 @@ function cardMovement(c) {
     <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6" data-section="movement">
       <div class="flex justify-between items-start mb-4">
         <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-3 lowercase">${hbadge("directions_walk")} did you move?</h2>
-        ${synced ? `<div class="flex items-center gap-1 bg-surface-container px-2 py-1 rounded-full chunky-border text-xs font-label-bold text-primary">${icon("check_circle", "text-sm fill-icon")} Synced</div>` : ""}
+        ${synced ? `<button data-sync class="chunky-button flex items-center gap-1 bg-surface-container px-2 py-1 rounded-full chunky-border text-xs font-label-bold text-primary">${icon("sync", "text-sm")} Sync</button>` : ""}
       </div>
       <div class="text-center mb-3">
         <span class="font-display-lg text-display-lg text-primary" data-steps>${c.steps.toLocaleString()}</span>
@@ -452,6 +453,12 @@ function wire(root, name) {
   };
   root.querySelector("[data-add-steps]")?.addEventListener("click", addSteps);
   stepInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") addSteps(); });
+
+  // Pull today's steps/sleep from Fitbit on demand.
+  root.querySelector("[data-sync]")?.addEventListener("click", async () => {
+    await syncHealth({ silent: false });
+    renderCheckin(root, { name });
+  });
 
   // End of the day — grateful-for + one line a day, saved on change.
   root.querySelector("[data-gratitude]")?.addEventListener("change", (e) => {

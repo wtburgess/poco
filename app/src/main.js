@@ -4,6 +4,7 @@ import { toast } from "./ui.js";
 import { openCloset } from "./views/rewards.js";
 import { initNudges } from "./notify.js";
 import { initInstall } from "./install.js";
+import { initHealthSync } from "./health-sync.js";
 import {
   initSupabase, isCloud, getSession, onAuth, cloudLoad, cloudPushFull, currentUser,
 } from "./supabase.js";
@@ -85,6 +86,7 @@ async function enterApp() {
   route();
   initNudges();
   initInstall();
+  initHealthSync();
   if (gap >= 2) {
     setTimeout(
       () => toast(`Welcome back! ${gap} days. Poco kept the seat warm.`, "waving_hand"),
