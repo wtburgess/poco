@@ -60,7 +60,11 @@ function seed() {
       reminderEnabled: false,
       reminderTime: "08:00",
       lastNotified: null,
+      reviewEnabled: true,
+      reviewDay: 0, // 0 = Sunday (weekly review prompt day)
     },
+    // The one focus from the last weekly review, pinned to the check-in dashboard.
+    review: { focus: "", focusSetAt: null },
     // Poco's wardrobe — leaves get spent here.
     cosmetics: {
       unlocked: [],
@@ -118,6 +122,7 @@ function migrate(s) {
   const base = seed();
   s.settings = { ...base.settings, ...(s.settings || {}) };
   s.cosmetics = { ...base.cosmetics, ...(s.cosmetics || {}) };
+  s.review = { ...base.review, ...(s.review || {}) };
   if (!s.lastSeen) s.lastSeen = todayKey();
   // Treat any past check-in as "logged" so existing users keep their streak.
   const today = todayKey();
@@ -285,6 +290,46 @@ export function habitStreak(habit) {
     offset--;
   }
   return streak;
+}
+
+// ---- Weekly review ----
+// Habit completion across the given week: overall %, per-habit tallies, and the
+// habit that lagged most (for the "friction" step).
+export function weeklyHabitStats(ref = new Date()) {
+  const keys = weekKeys(ref);
+  const perHabit = state.habits.map((h) => ({
+    habit: h,
+    done: keys.filter((k) => h.checks[k]).length,
+    of: keys.length,
+  }));
+  const done = perHabit.reduce((s, p) => s + p.done, 0);
+  const total = perHabit.reduce((s, p) => s + p.of, 0);
+  const lowest = perHabit.slice().sort((a, b) => a.done - b.done)[0] || null;
+  return { pct: total ? Math.round((done / total) * 100) : 0, perHabit, lowest, keys };
+}
+
+// Days this week with a committed check-in (secondary "wins" stat).
+export function weeklyCheckinCount(ref = new Date()) {
+  return weekKeys(ref).filter((k) => state.checkins[k] && state.checkins[k].logged).length;
+}
+
+// Average logged steps over the last N days (used by the adaptive-nudge step).
+// Only counts days that actually have a check-in so a gap doesn't drag it to zero.
+export function recentStepAvg(days = 21) {
+  let sum = 0, n = 0;
+  for (let o = 1; o <= days; o++) {
+    const c = state.checkins[dayKeyOffset(-o)];
+    if (c) { sum += c.steps || 0; n++; }
+  }
+  return n ? Math.round(sum / n) : 0;
+}
+
+export function getWeeklyFocus() {
+  return (state.review && state.review.focus) || "";
+}
+export function setWeeklyFocus(text) {
+  state.review = { ...(state.review || {}), focus: text, focusSetAt: new Date().toISOString() };
+  emit();
 }
 
 export function updateGoals(patch) {

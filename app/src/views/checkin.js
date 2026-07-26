@@ -5,7 +5,7 @@
 // the day (dawn → daylight → dusk) and Poco changes pose to match.
 import {
   getTodayCheckin, saveCheckin, getTodayMeals, getState,
-  commitCheckin, isCheckinLoggedToday, checkinStreak,
+  commitCheckin, isCheckinLoggedToday, checkinStreak, getWeeklyFocus,
 } from "../store.js";
 import { icon, pocoSvg, toast, shell, celebrate } from "../ui.js";
 import { heroState, doneTap } from "../poco.js";
@@ -66,6 +66,8 @@ export function renderCheckin(root, { name }) {
   const body = `
     <div class="checkin-ambient" data-mode="${mode}">
       <div class="flex flex-col gap-gutter">
+        ${focusBanner()}
+        ${reviewBanner()}
         ${heroSection(name, mode)}
         ${previewControl(mode)}
 
@@ -91,6 +93,39 @@ export function renderCheckin(root, { name }) {
 
   root.innerHTML = shell("checkin", body);
   wire(root, name);
+}
+
+// The single focus from the last weekly review, pinned to the top of the dashboard.
+function focusBanner() {
+  const f = getWeeklyFocus();
+  if (!f) return "";
+  return `
+    <div class="bg-tertiary-fixed chunky-border card-shadow rounded-2xl px-4 py-3 flex items-center gap-3">
+      <span class="text-xl shrink-0">📌</span>
+      <div class="flex-1 min-w-0">
+        <p class="font-label-bold text-[11px] text-on-tertiary-fixed uppercase tracking-wide">This week's focus</p>
+        <p class="font-headline-md text-headline-md text-on-surface truncate">${escNote(f)}</p>
+      </div>
+    </div>`;
+}
+
+// Launcher for the weekly review — emphasised on the configured review day (and the
+// morning after), quietly available the rest of the week.
+function reviewBanner() {
+  const { settings } = getState();
+  if (!settings.reviewEnabled) return "";
+  const today = new Date().getDay();
+  const rd = Number.isInteger(settings.reviewDay) ? settings.reviewDay : 0;
+  const due = today === rd || today === (rd + 1) % 7;
+  return `
+    <button data-review class="chunky-button w-full flex items-center gap-3 px-4 py-3 rounded-2xl chunky-border card-shadow text-left ${due ? "bg-primary text-on-primary" : "bg-surface-container-lowest text-on-surface"}">
+      <span class="w-9 h-9 rounded-full chunky-border flex items-center justify-center shrink-0 ${due ? "bg-surface/25" : "bg-surface-container"}">${icon("event_available", due ? "" : "text-primary")}</span>
+      <div class="flex-1 min-w-0">
+        <p class="font-label-bold text-label-bold">${due ? "Time for your weekly review" : "Weekly review"}</p>
+        <p class="text-xs ${due ? "opacity-80" : "text-on-surface-variant"}">${due ? "2–3 min. Celebrate, adjust, set next week's anchor." : "Reflect whenever you're ready →"}</p>
+      </div>
+      ${icon("chevron_right", due ? "" : "text-on-surface-variant")}
+    </button>`;
 }
 
 function collapsedHeading(mode) {
@@ -344,6 +379,11 @@ function wire(root, name) {
       rerender();
     })
   );
+
+  // Weekly review launcher.
+  root.querySelector("[data-review]")?.addEventListener("click", () => {
+    location.hash = "#/review";
+  });
 
   // Collapsed chip — expand it (works regardless of the time; 10pm is a nudge, not a lock).
   root.querySelectorAll("[data-expand]").forEach((b) =>

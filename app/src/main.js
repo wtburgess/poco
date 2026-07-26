@@ -12,6 +12,7 @@ import { renderFood } from "./views/food.js";
 import { renderHealth } from "./views/health.js";
 import { renderHabits } from "./views/habits.js";
 import { renderSettings } from "./views/settings.js";
+import { renderReview } from "./views/review.js";
 
 const app = document.getElementById("app");
 
@@ -21,6 +22,7 @@ const ROUTES = {
   health: renderHealth,
   habits: renderHabits,
   settings: renderSettings,
+  review: (root) => renderReview(root),
 };
 
 function currentRoute() {

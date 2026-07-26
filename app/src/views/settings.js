@@ -84,6 +84,23 @@ export function renderSettings(root) {
       </div>
     </section>
 
+    <!-- Weekly review -->
+    <section class="flex flex-col gap-unit">
+      <h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2 ml-2 mt-2">${icon("event_available", "text-primary fill-icon")} Weekly Review</h3>
+      <div class="bg-surface-container-lowest wobbly-border chunky-border card-shadow p-2">
+        ${toggleRow("reviewEnabled", "Weekly review prompt", "reviewers", settings.reviewEnabled, true)}
+        <div class="flex items-center justify-between p-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center chunky-border">${icon("calendar_month", "text-on-surface fill-icon")}</div>
+            <p class="font-label-bold text-label-bold text-on-surface">Prompt me on</p>
+          </div>
+          <select data-review-day class="px-3 py-2 rounded-lg chunky-border bg-[#ffeadc] font-label-bold text-label-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary">
+            ${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((d, i) => `<option value="${i}" ${settings.reviewDay === i ? "selected" : ""}>${d}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+    </section>
+
     <!-- Actions -->
     <section class="flex flex-col gap-4 mt-2">
       <button data-save-prefs class="tactile-button chunky-button bg-primary text-on-primary font-label-bold text-label-bold py-3 px-6 rounded-full w-full flex items-center justify-center gap-2">${icon("save")} Save Preferences</button>
@@ -189,6 +206,11 @@ function wire(root) {
     }
     fireNudge(true);
     toast("Sent a test nudge 🦥", "notifications_active");
+  });
+
+  root.querySelector("[data-review-day]")?.addEventListener("change", (e) => {
+    updateSettings({ reviewDay: +e.target.value });
+    toast("Review day updated", "event_available");
   });
 
   root.querySelector("[data-save-prefs]").addEventListener("click", () => toast("Preferences saved", "check_circle"));
