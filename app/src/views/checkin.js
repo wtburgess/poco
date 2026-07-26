@@ -7,7 +7,7 @@ import {
   getTodayCheckin, saveCheckin, getTodayMeals, getState,
   commitCheckin, isCheckinLoggedToday, checkinStreak, getWeeklyFocus,
 } from "../store.js";
-import { icon, pocoSvg, toast, shell, celebrate } from "../ui.js";
+import { icon, pocoImg, toast, shell, celebrate } from "../ui.js";
 import { heroState, doneTap } from "../poco.js";
 import { logBite } from "./logfood.js";
 
@@ -134,16 +134,15 @@ function collapsedHeading(mode) {
   return "tucked away";
 }
 
-// ---- Reactive hero — Poco's pose follows the time of day ----
-const MODE_POSE = { morning: "sleepy", daytime: "happy", evening: "zen" };
-
-function heroSection(name, mode) {
+// ---- Reactive hero ----
+// The illustrated Poco avatar (same one used across the app); the time-of-day feel
+// comes from the ambient background shift, not a pose change.
+function heroSection(name) {
   const { title, sub } = heroState(name);
-  const pose = MODE_POSE[mode] || "chill";
   return `
     <section class="text-center mb-1" data-hero>
       <div class="flex justify-center mb-3">
-        <div class="w-40 h-40 rounded-full overflow-hidden chunky-border card-shadow bg-secondary-container flex items-center justify-center" data-poco>${pocoSvg(150, { mood: pose })}</div>
+        <div class="w-40 h-40 rounded-full overflow-hidden chunky-border card-shadow bg-secondary-container flex items-center justify-center" data-poco>${pocoImg(148)}</div>
       </div>
       <div class="flex justify-center mb-3">${streakBadge()}</div>
       <h1 class="font-headline-md text-headline-md text-on-background mb-1">${title}</h1>

@@ -5,7 +5,7 @@ import {
   getState, weeklyHabitStats, weeklyCheckinCount, recentStepAvg,
   setWeeklyFocus, updateGoals,
 } from "../store.js";
-import { icon, pocoSvg, celebrate, toast } from "../ui.js";
+import { icon, pocoImg, celebrate, toast } from "../ui.js";
 
 const FRICTION = [
   { id: "energy",   label: "Low energy / Fatigue",     emoji: "🔋" },
@@ -181,7 +181,7 @@ function renderDone(root) {
   root.innerHTML = `
     <div class="review-stage min-h-screen flex flex-col items-center justify-center px-container-padding py-10">
       <div class="w-full max-w-md mx-auto flex flex-col items-center text-center gap-5 view-enter">
-        <div class="w-28 h-28 rounded-full overflow-hidden chunky-border card-shadow bg-secondary-container flex items-center justify-center">${pocoSvg(104, { mood: "ecstatic" })}</div>
+        <div class="w-28 h-28 rounded-full overflow-hidden chunky-border card-shadow bg-secondary-container flex items-center justify-center">${pocoImg(96)}</div>
         <h1 class="font-display-sm text-display-sm text-on-surface">🎉 Weekly Review Complete!</h1>
         <p class="font-body-lg text-body-lg text-on-surface-variant">Small tweaks lead to big trajectory shifts.</p>
         ${focus ? `
