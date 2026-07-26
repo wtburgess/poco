@@ -1,9 +1,13 @@
-// Daily Check-in view — streak-first, reactive Poco, once-a-day commit.
+// Daily Check-in view — ONE screen, three time-based modes.
+// The app decides what matters *now*: morning wakes up sleep+mood, daytime brings
+// food+movement forward, evening (soft priority from 10pm) makes the wind-down the
+// hero. The rest collapse into slim "done" chips. The screen itself shifts through
+// the day (dawn → daylight → dusk) and Poco changes pose to match.
 import {
   getTodayCheckin, saveCheckin, getTodayMeals, getState,
   commitCheckin, isCheckinLoggedToday, checkinStreak,
 } from "../store.js";
-import { icon, pocoImg, toast, shell, celebrate } from "../ui.js";
+import { icon, pocoSvg, toast, shell, celebrate } from "../ui.js";
 import { heroState, doneTap } from "../poco.js";
 import { logBite } from "./logfood.js";
 
@@ -15,150 +19,124 @@ const MOODS = [
   "sentiment_very_satisfied",
 ];
 
+// Sleep quality: a thumb that rotates from 👎 (rough night) to 👍 (great one).
+const SLEEP_ROT = [180, 135, 90, 45, 0];
+
+// The three modes and which sections each one brings to the foreground.
+const SECTIONS = [
+  { id: "sleep",     group: "morning", icon: "bedtime",          label: "sleep" },
+  { id: "mood",      group: "morning", icon: "mood",             label: "mental state" },
+  { id: "food",      group: "daytime", icon: "restaurant",       label: "food" },
+  { id: "movement",  group: "daytime", icon: "directions_walk",  label: "movement" },
+  { id: "gratitude", group: "evening", icon: "favorite",         label: "grateful for" },
+  { id: "note",      group: "evening", icon: "edit_note",        label: "one line a day" },
+];
+
+// ---- Which mode are we in? ----
+// Real clock by default; the dev Preview control can override it (session-only,
+// never persisted — in production the clock always drives it).
+let previewMode = null; // "morning" | "daytime" | "evening" | null (=live)
+// Sections the user manually expanded despite it not being "their" mode. 10pm is a
+// priority shift, not a lock: anything can still be opened and edited on demand.
+const manualOpen = new Set();
+
+function clockMode(d = new Date()) {
+  const h = d.getHours();
+  if (h >= 22 || h < 5) return "evening"; // soft evening priority from 10pm
+  if (h < 11) return "morning";
+  return "daytime";
+}
+function currentMode() {
+  return previewMode || clockMode();
+}
+
 // Section-heading icon: a chunky dark "sticker" square with the glyph knocked out.
 function hbadge(name) {
   return `<span class="material-symbols-outlined bg-on-surface text-surface p-2 rounded-xl text-[22px] leading-none">${name}</span>`;
 }
 
-// Sleep quality: a thumb that rotates from 👎 (rough night) to 👍 (great one),
-// instead of the happy/sad faces used for mood.
-const SLEEP_ROT = [180, 135, 90, 45, 0];
-
 export function renderCheckin(root, { name }) {
   const c = getTodayCheckin();
   const meals = getTodayMeals();
-  const { goals } = getState();
-  const waterGoal = goals.water || 8; // existing saved goals may predate this field
+  const mode = currentMode();
+
+  const expanded = SECTIONS.filter((s) => s.group === mode || manualOpen.has(s.id));
+  const collapsed = SECTIONS.filter((s) => s.group !== mode && !manualOpen.has(s.id));
 
   const body = `
-    ${heroSection(name)}
+    <div class="checkin-ambient" data-mode="${mode}">
+      <div class="flex flex-col gap-gutter">
+        ${heroSection(name, mode)}
+        ${previewControl(mode)}
 
-    <!-- Sleep -->
-    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6 relative overflow-hidden">
-      <span class="material-symbols-outlined absolute -top-2 -right-2 text-surface-tint opacity-10 text-6xl rotate-45">eco</span>
-      <h2 class="font-headline-md text-headline-md text-on-surface mb-6 flex items-center gap-3 lowercase">
-        ${hbadge("bedtime")} did you actually sleep?
-      </h2>
-      <div class="flex flex-col items-center gap-8">
-        <div class="flex items-center gap-4">
-          <button data-sleep="-0.5" class="chunky-button w-11 h-11 rounded-full chunky-border bg-surface-container flex items-center justify-center card-shadow">${icon("remove")}</button>
-          <div class="w-32 h-32 rounded-full chunky-border bg-surface-container flex items-center justify-center relative card-shadow">
-            <div class="absolute inset-2 rounded-full border-4 border-dashed border-outline-variant/30"></div>
-            <div class="text-center z-10">
-              <span class="font-display-sm text-display-sm text-primary" data-sleep-value>${c.sleepHours}</span>
-              <span class="block font-label-bold text-label-bold text-on-surface-variant">hrs</span>
-            </div>
+        ${expanded.map((s) => sectionCard(s, c, meals)).join("")}
+
+        ${ctaHtml()}
+
+        ${collapsed.length ? `
+          <div class="flex items-center gap-3 pt-2 pb-1 cx-divider">
+            <div class="h-px flex-1 bg-outline-variant/40"></div>
+            <span class="font-label-bold text-label-bold flex items-center gap-1">${icon("unfold_more", "text-sm")} ${collapsedHeading(mode)}</span>
+            <div class="h-px flex-1 bg-outline-variant/40"></div>
           </div>
-          <button data-sleep="0.5" class="chunky-button w-11 h-11 rounded-full chunky-border bg-surface-container flex items-center justify-center card-shadow">${icon("add")}</button>
-        </div>
-        <div class="w-full">
-          <div class="flex justify-between px-1 mb-2" data-quality-faces>
-            ${SLEEP_ROT.map((rot, i) => `<button data-quality="${i}" style="transform:rotate(${rot}deg)" class="material-symbols-outlined ${i === c.sleepQuality ? "text-tertiary-container fill-icon" : "text-outline"}">thumb_up</button>`).join("")}
+          <div class="flex flex-col gap-2">
+            ${collapsed.map((s) => summaryRow(s, c, meals)).join("")}
           </div>
-          <div class="h-4 bg-surface-container rounded-full chunky-border relative overflow-hidden">
-            <div class="absolute top-0 left-0 h-full bg-tertiary-container" data-quality-fill style="width:${((c.sleepQuality + 1) / 5) * 100}%"></div>
-          </div>
-        </div>
+        ` : ""}
+
+        <div class="h-24 md:h-4"></div>
       </div>
-    </article>
-
-    <!-- Mood -->
-    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6">
-      <h2 class="font-headline-md text-headline-md text-on-surface mb-6 flex items-center gap-3 lowercase">
-        ${hbadge("mood")} mental state check
-      </h2>
-      <div class="flex justify-between items-center" data-mood-row>
-        ${MOODS.map((m, i) => moodButton(m, i, c.mood)).join("")}
-      </div>
-    </article>
-
-    <!-- Confirm today's reflection (sleep + mood) -->
-    ${ctaHtml()}
-
-    <!-- Throughout the day: things you keep logging -->
-    <div class="flex items-center gap-3 pt-3 pb-1">
-      <div class="h-px flex-1 bg-outline-variant/40"></div>
-      <span class="font-label-bold text-label-bold text-on-surface-variant flex items-center gap-1">${icon("wb_sunny", "text-sm text-tertiary-container")} Throughout the day</span>
-      <div class="h-px flex-1 bg-outline-variant/40"></div>
     </div>
-
-    <!-- Movement -->
-    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6">
-      <div class="flex justify-between items-start mb-4">
-        <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-3 lowercase">${hbadge("directions_walk")} did you move?</h2>
-        <div class="flex items-center gap-1 bg-surface-container px-2 py-1 rounded-full chunky-border text-xs font-label-bold text-primary">${icon("sync", "text-sm")} Synced</div>
-      </div>
-      <div class="text-center mb-2">
-        <span class="font-display-lg text-display-lg text-primary" data-steps>${c.steps.toLocaleString()}</span>
-        <span class="block font-body-md text-body-md text-on-surface-variant">steps today</span>
-      </div>
-      <div class="flex justify-center">
-        <button data-add-steps class="chunky-button px-4 py-1.5 bg-transparent border-dashed border-[2.5px] border-outline rounded-full flex items-center gap-1 text-on-surface-variant hover:bg-surface-container">
-          ${icon("add", "text-sm")} <span class="font-label-bold text-label-bold">Log a walk</span>
-        </button>
-      </div>
-    </article>
-
-    <!-- Water -->
-    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-3 lowercase">${hbadge("water_drop")} stay juicy</h2>
-        <span class="font-label-bold text-label-bold text-on-surface-variant"><span data-water-count>${c.water}</span> / ${waterGoal}</span>
-      </div>
-      <div class="flex flex-wrap gap-2 justify-between" data-water-cups>
-        ${waterCups(c.water, waterGoal)}
-      </div>
-    </article>
-
-    <!-- Food quick log -->
-    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6">
-      <h2 class="font-headline-md text-headline-md text-on-surface mb-4 flex items-center gap-3 lowercase">${hbadge("restaurant")} fueling the meat suit</h2>
-      <button data-log-food class="chunky-button w-full bg-surface-container chunky-border card-shadow rounded-[16px] py-4 flex items-center justify-center gap-2 hover:bg-secondary-container">
-        ${icon("add_a_photo", "text-primary")}
-        <span class="font-label-bold text-label-bold text-on-surface">Add a bite</span>
-      </button>
-      <div class="mt-4 flex flex-col gap-2" data-meal-list>
-        ${meals.length ? meals.map(mealRow).join("") : `<p class="text-center font-body-md text-sm text-on-surface-variant py-2">Nothing logged yet.</p>`}
-      </div>
-    </article>
-
-    <!-- End of the day: a small wind-down ritual -->
-    <div class="flex items-center gap-3 pt-3 pb-1">
-      <div class="h-px flex-1 bg-outline-variant/40"></div>
-      <span class="font-label-bold text-label-bold text-on-surface-variant flex items-center gap-1">${icon("bedtime", "text-sm text-tertiary-container")} End of the day</span>
-      <div class="h-px flex-1 bg-outline-variant/40"></div>
-    </div>
-
-    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6 flex flex-col gap-6">
-      <div>
-        <h3 class="font-headline-md text-headline-md text-on-surface mb-3 flex items-center gap-3 lowercase">${hbadge("favorite")} grateful for…</h3>
-        <textarea data-gratitude rows="2" maxlength="280" placeholder="one small thing. a snack counts." class="w-full px-4 py-3 rounded-2xl chunky-border bg-surface-container font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary resize-none">${escNote(c.gratitude)}</textarea>
-      </div>
-      <div>
-        <h3 class="font-headline-md text-headline-md text-on-surface mb-3 flex items-center gap-3 lowercase">${hbadge("edit_note")} one line a day</h3>
-        <textarea data-note rows="2" maxlength="280" placeholder="anything worth remembering? (or don't — no pressure.)" class="w-full px-4 py-3 rounded-2xl chunky-border bg-surface-container font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary resize-none">${escNote(c.note)}</textarea>
-      </div>
-    </article>
-
-    <div class="h-24 md:h-4"></div>
   `;
 
   root.innerHTML = shell("checkin", body);
   wire(root, name);
 }
 
-// ---- Reactive hero ----
-function heroSection(name, pop = false) {
-  const { mood, title, sub } = heroState(name);
+function collapsedHeading(mode) {
+  if (mode === "morning") return "later today";
+  if (mode === "evening") return "the day, folded up";
+  return "tucked away";
+}
+
+// ---- Reactive hero — Poco's pose follows the time of day ----
+const MODE_POSE = { morning: "sleepy", daytime: "happy", evening: "zen" };
+
+function heroSection(name, mode) {
+  const { title, sub } = heroState(name);
+  const pose = MODE_POSE[mode] || "chill";
   return `
-    <section class="text-center mb-2" data-hero>
+    <section class="text-center mb-1" data-hero>
       <div class="flex justify-center mb-3">
-        <div class="w-40 h-40 rounded-full overflow-hidden chunky-border card-shadow bg-secondary-container flex items-center justify-center" data-poco>${pocoImg(148)}</div>
+        <div class="w-40 h-40 rounded-full overflow-hidden chunky-border card-shadow bg-secondary-container flex items-center justify-center" data-poco>${pocoSvg(150, { mood: pose })}</div>
       </div>
       <div class="flex justify-center mb-3">${streakBadge()}</div>
       <h1 class="font-headline-md text-headline-md text-on-background mb-1">${title}</h1>
       <p class="font-body-md text-body-md text-on-surface-variant max-w-sm mx-auto">${sub}</p>
     </section>`;
+}
+
+// Dev-only control to feel the three modes without waiting for the clock.
+function previewControl(mode) {
+  const live = previewMode === null;
+  const seg = (id, label) => {
+    const on = previewMode === id;
+    return `<button data-preview="${id}" class="chunky-button flex-1 px-2 py-1.5 rounded-full text-xs font-label-bold ${
+      on ? "bg-on-surface text-surface" : "text-on-surface-variant hover:bg-surface-container"
+    }">${label}</button>`;
+  };
+  return `
+    <div class="cx-preview rounded-2xl chunky-border bg-surface-container/70 px-3 py-2 flex items-center gap-2 flex-wrap">
+      <span class="font-label-bold text-[11px] text-on-surface-variant flex items-center gap-1">${icon("construction", "text-sm")} Preview · dev only</span>
+      <div class="flex items-center gap-1 flex-1 min-w-[220px] justify-end">
+        ${seg("morning", "☀️ Morning")}
+        ${seg("daytime", "🌤 Day")}
+        ${seg("evening", "🌙 Evening")}
+        <button data-preview="live" class="chunky-button px-2 py-1.5 rounded-full text-xs font-label-bold ${
+          live ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container"
+        }">⏱ Live</button>
+      </div>
+    </div>`;
 }
 
 function streakBadge() {
@@ -189,9 +167,146 @@ function ctaHtml() {
   </button>`;
 }
 
-function refreshHero(root, name, pop = false) {
+function refreshHero(root, name) {
   const heroEl = root.querySelector("[data-hero]");
-  if (heroEl) heroEl.outerHTML = heroSection(name, pop);
+  if (heroEl) heroEl.outerHTML = heroSection(name, currentMode());
+}
+
+// ---- Expanded section cards ----
+function sectionCard(s, c, meals) {
+  switch (s.id) {
+    case "sleep":     return cardSleep(c);
+    case "mood":      return cardMood(c);
+    case "food":      return cardFood(meals);
+    case "movement":  return cardMovement(c);
+    case "gratitude": return cardGratitude(c);
+    case "note":      return cardNote(c);
+    default:          return "";
+  }
+}
+
+function cardSleep(c) {
+  return `
+    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6 relative overflow-hidden" data-section="sleep">
+      <span class="material-symbols-outlined absolute -top-2 -right-2 text-surface-tint opacity-10 text-6xl rotate-45">eco</span>
+      <h2 class="font-headline-md text-headline-md text-on-surface mb-6 flex items-center gap-3 lowercase">${hbadge("bedtime")} did you actually sleep?</h2>
+      <div class="flex flex-col items-center gap-8">
+        <div class="flex items-center gap-4">
+          <button data-sleep="-0.5" class="chunky-button w-11 h-11 rounded-full chunky-border bg-surface-container flex items-center justify-center card-shadow">${icon("remove")}</button>
+          <div class="w-32 h-32 rounded-full chunky-border bg-surface-container flex items-center justify-center relative card-shadow">
+            <div class="absolute inset-2 rounded-full border-4 border-dashed border-outline-variant/30"></div>
+            <div class="text-center z-10">
+              <span class="font-display-sm text-display-sm text-primary" data-sleep-value>${c.sleepHours}</span>
+              <span class="block font-label-bold text-label-bold text-on-surface-variant">hrs</span>
+            </div>
+          </div>
+          <button data-sleep="0.5" class="chunky-button w-11 h-11 rounded-full chunky-border bg-surface-container flex items-center justify-center card-shadow">${icon("add")}</button>
+        </div>
+        <div class="w-full">
+          <div class="flex justify-between px-1 mb-2" data-quality-faces>
+            ${SLEEP_ROT.map((rot, i) => `<button data-quality="${i}" style="transform:rotate(${rot}deg)" class="material-symbols-outlined ${i === c.sleepQuality ? "text-tertiary-container fill-icon" : "text-outline"}">thumb_up</button>`).join("")}
+          </div>
+          <div class="h-4 bg-surface-container rounded-full chunky-border relative overflow-hidden">
+            <div class="absolute top-0 left-0 h-full bg-tertiary-container" data-quality-fill style="width:${((c.sleepQuality + 1) / 5) * 100}%"></div>
+          </div>
+        </div>
+      </div>
+    </article>`;
+}
+
+function cardMood(c) {
+  return `
+    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6" data-section="mood">
+      <h2 class="font-headline-md text-headline-md text-on-surface mb-6 flex items-center gap-3 lowercase">${hbadge("mood")} mental state check</h2>
+      <div class="flex justify-between items-center" data-mood-row>
+        ${MOODS.map((m, i) => moodButton(m, i, c.mood)).join("")}
+      </div>
+    </article>`;
+}
+
+function cardMovement(c) {
+  return `
+    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6" data-section="movement">
+      <div class="flex justify-between items-start mb-4">
+        <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-3 lowercase">${hbadge("directions_walk")} did you move?</h2>
+        <div class="flex items-center gap-1 bg-surface-container px-2 py-1 rounded-full chunky-border text-xs font-label-bold text-primary">${icon("sync", "text-sm")} Synced</div>
+      </div>
+      <div class="text-center mb-2">
+        <span class="font-display-lg text-display-lg text-primary" data-steps>${c.steps.toLocaleString()}</span>
+        <span class="block font-body-md text-body-md text-on-surface-variant">steps today</span>
+      </div>
+      <div class="flex justify-center">
+        <button data-add-steps class="chunky-button px-4 py-1.5 bg-transparent border-dashed border-[2.5px] border-outline rounded-full flex items-center gap-1 text-on-surface-variant hover:bg-surface-container">
+          ${icon("add", "text-sm")} <span class="font-label-bold text-label-bold">Log a walk</span>
+        </button>
+      </div>
+    </article>`;
+}
+
+function cardFood(meals) {
+  return `
+    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6" data-section="food">
+      <h2 class="font-headline-md text-headline-md text-on-surface mb-4 flex items-center gap-3 lowercase">${hbadge("restaurant")} fueling the meat suit</h2>
+      <button data-log-food class="chunky-button w-full bg-surface-container chunky-border card-shadow rounded-[16px] py-4 flex items-center justify-center gap-2 hover:bg-secondary-container">
+        ${icon("add_a_photo", "text-primary")}
+        <span class="font-label-bold text-label-bold text-on-surface">Add a bite</span>
+      </button>
+      <div class="mt-4 flex flex-col gap-2" data-meal-list>
+        ${meals.length ? meals.map(mealRow).join("") : `<p class="text-center font-body-md text-sm text-on-surface-variant py-2">Nothing logged yet.</p>`}
+      </div>
+    </article>`;
+}
+
+function cardGratitude(c) {
+  return `
+    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6" data-section="gratitude">
+      <h3 class="font-headline-md text-headline-md text-on-surface mb-3 flex items-center gap-3 lowercase">${hbadge("favorite")} grateful for…</h3>
+      <textarea data-gratitude rows="3" maxlength="280" placeholder="one small thing. a snack counts." class="w-full px-4 py-3 rounded-2xl chunky-border bg-surface-container font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary resize-none">${escNote(c.gratitude)}</textarea>
+    </article>`;
+}
+
+function cardNote(c) {
+  return `
+    <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6" data-section="note">
+      <h3 class="font-headline-md text-headline-md text-on-surface mb-3 flex items-center gap-3 lowercase">${hbadge("edit_note")} one line a day</h3>
+      <textarea data-note rows="3" maxlength="280" placeholder="anything worth remembering? (or don't — no pressure.)" class="w-full px-4 py-3 rounded-2xl chunky-border bg-surface-container font-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary resize-none">${escNote(c.note)}</textarea>
+    </article>`;
+}
+
+// ---- Collapsed summary rows (the "done chip" state) ----
+// A tidy, tappable chip: checkmark + the value you logged. Tapping expands it so
+// you can still edit anything, any time.
+function summaryRow(s, c, meals) {
+  const { value, done } = summaryValue(s, c, meals);
+  return `
+    <button data-expand="${s.id}" class="chunky-button w-full flex items-center gap-3 px-4 py-3 rounded-2xl chunky-border bg-surface-container-lowest card-shadow text-left">
+      <span class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 chunky-border ${done ? "bg-primary-fixed" : "bg-surface-container"}">
+        ${icon(done ? "check" : s.icon, `text-[18px] ${done ? "text-primary fill-icon" : "text-on-surface-variant"}`)}
+      </span>
+      <span class="font-label-bold text-label-bold text-on-surface lowercase flex-1 truncate">${s.label}</span>
+      ${value ? `<span class="font-label-bold text-label-bold text-on-surface-variant truncate max-w-[45%] text-right">${value}</span>` : `<span class="text-xs text-on-surface-variant">tap to add</span>`}
+      ${icon("chevron_right", "text-on-surface-variant text-lg shrink-0")}
+    </button>`;
+}
+
+function summaryValue(s, c, meals) {
+  switch (s.id) {
+    case "sleep":     return { value: `${c.sleepHours} hrs`, done: true };
+    case "mood":      return { value: MOOD_WORDS[c.mood] || "—", done: true };
+    case "movement":  return { value: `${c.steps.toLocaleString()} steps`, done: c.steps > 0 };
+    case "food": {
+      const kcal = meals.reduce((sum, m) => sum + (m.kcal || 0), 0);
+      return { value: meals.length ? `${meals.length} · ${kcal} kcal` : "", done: meals.length > 0 };
+    }
+    case "gratitude": return { value: snippet(c.gratitude), done: !!c.gratitude };
+    case "note":      return { value: snippet(c.note), done: !!c.note };
+    default:          return { value: "", done: false };
+  }
+}
+const MOOD_WORDS = ["rough", "meh", "okay", "good", "glowing"];
+function snippet(s) {
+  s = String(s || "").trim();
+  return s.length > 28 ? escNote(s.slice(0, 27)) + "…" : escNote(s);
 }
 
 function moodButton(m, i, active) {
@@ -213,23 +328,31 @@ function mealRow(m) {
   </div>`;
 }
 
-// A tappable row of water drops that fill up to the current count.
-function waterCups(current, goal) {
-  let out = "";
-  for (let i = 0; i < goal; i++) {
-    const filled = i < current;
-    out += `<button data-water="${i}" class="chunky-button w-10 h-10 rounded-full chunky-border flex items-center justify-center ${filled ? "bg-primary-fixed" : "bg-surface-container"}">
-      <span class="material-symbols-outlined text-[20px] ${filled ? "text-primary fill-icon" : "text-outline"}">water_drop</span>
-    </button>`;
-  }
-  return out;
-}
-
 function escNote(s) {
   return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function wire(root, name) {
+  const rerender = () => renderCheckin(root, { name });
+
+  // Preview (dev) — flip the mode, or return to the live clock.
+  root.querySelectorAll("[data-preview]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const v = b.dataset.preview;
+      previewMode = v === "live" ? null : v;
+      manualOpen.clear(); // a fresh mode starts cleanly folded
+      rerender();
+    })
+  );
+
+  // Collapsed chip — expand it (works regardless of the time; 10pm is a nudge, not a lock).
+  root.querySelectorAll("[data-expand]").forEach((b) =>
+    b.addEventListener("click", () => {
+      manualOpen.add(b.dataset.expand);
+      rerender();
+    })
+  );
+
   // Sleep +/- — updates value and lets Poco react.
   root.querySelectorAll("[data-sleep]").forEach((b) =>
     b.addEventListener("click", () => {
@@ -258,7 +381,7 @@ function wire(root, name) {
   wireMood(root, name);
 
   // Add steps
-  root.querySelector("[data-add-steps]").addEventListener("click", () => {
+  root.querySelector("[data-add-steps]")?.addEventListener("click", () => {
     const c = getTodayCheckin();
     const add = 500 + Math.floor(Math.random() * 1200);
     saveCheckin({ steps: c.steps + add });
@@ -266,22 +389,7 @@ function wire(root, name) {
     toast(`+${add.toLocaleString()} steps logged`, "directions_walk");
   });
 
-  // Water — tap a drop to fill up to it; tap the last filled one to remove it.
-  const waterWrap = root.querySelector("[data-water-cups]");
-  if (waterWrap) {
-    waterWrap.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-water]");
-      if (!btn) return;
-      const i = +btn.dataset.water;
-      const cur = getTodayCheckin().water;
-      const next = cur === i + 1 ? i : i + 1;
-      saveCheckin({ water: next });
-      waterWrap.innerHTML = waterCups(next, getState().goals.water || 8);
-      root.querySelector("[data-water-count]").textContent = next;
-    });
-  }
-
-  // End of the day — grateful-for + one line a day, saved on blur.
+  // End of the day — grateful-for + one line a day, saved on change.
   root.querySelector("[data-gratitude]")?.addEventListener("change", (e) => {
     saveCheckin({ gratitude: e.target.value.trim() });
   });
@@ -290,7 +398,7 @@ function wire(root, name) {
   });
 
   // Food quick log
-  root.querySelector("[data-log-food]").addEventListener("click", () =>
+  root.querySelector("[data-log-food]")?.addEventListener("click", () =>
     logBite(() => renderCheckin(root, { name: getState().profile.name }))
   );
 
@@ -307,10 +415,7 @@ function wire(root, name) {
     } else {
       toast(`Logged! ${res.streak}-day streak · +${res.awarded} 🌿`, "local_fire_department");
     }
-    // Full re-render: updates leaf count in the top bar, flips the CTA, and
-    // pops a freshly-proud Poco.
     renderCheckin(root, { name });
-    root.querySelector("[data-poco]")?.classList.add("poco-pop");
   });
 }
 

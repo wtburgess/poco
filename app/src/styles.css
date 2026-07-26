@@ -197,6 +197,43 @@ body {
 }
 .checkin-done:active { transform: none; box-shadow: var(--shadow-card) !important; }
 
+/* ---- Check-in: the screen shifts through the day ---- */
+/* One ambient panel behind the check-in that moves from pale dawn → full daylight
+   → dark dusk with a warm lamp-glow. Cards stay opaque so their content is always
+   readable; only the hero/divider text sits on the ambient, so those flip light at
+   dusk. */
+.checkin-ambient {
+  border-radius: 28px;
+  padding: 20px 16px;
+  margin: -8px -8px 0;
+  transition: background 0.7s ease, color 0.7s ease;
+}
+.checkin-ambient[data-mode="morning"] {
+  background:
+    radial-gradient(90% 60% at 50% 0%, rgba(255, 224, 178, 0.55), transparent 70%),
+    linear-gradient(180deg, #fff3e2 0%, #ffe9d4 100%);
+}
+.checkin-ambient[data-mode="daytime"] {
+  background:
+    radial-gradient(90% 55% at 50% 0%, rgba(190, 224, 255, 0.5), transparent 70%),
+    linear-gradient(180deg, #eef6ff 0%, #fff8f0 55%);
+}
+.checkin-ambient[data-mode="evening"] {
+  background:
+    radial-gradient(55% 34% at 50% 6%, rgba(255, 196, 120, 0.4), transparent 72%),
+    linear-gradient(180deg, #2b2542 0%, #191526 100%);
+}
+/* At dusk the hero + section dividers sit on a dark sky, so lift their text. */
+.checkin-ambient[data-mode="evening"] [data-hero] h1 { color: #ffede2; }
+.checkin-ambient[data-mode="evening"] [data-hero] p { color: #e7d8c9; }
+.checkin-ambient[data-mode="evening"] .cx-divider span { color: #ffd6a8; }
+.checkin-ambient[data-mode="evening"] .cx-divider .h-px { background: rgba(255, 237, 226, 0.2); }
+.checkin-ambient[data-mode="evening"] .cx-preview {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 237, 226, 0.35);
+}
+.checkin-ambient[data-mode="evening"] .cx-preview span { color: #e7d8c9; }
+
 /* Range input styled as sloth slider track fill helper */
 input[type="range"].sloth-range {
   -webkit-appearance: none;
