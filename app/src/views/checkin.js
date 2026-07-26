@@ -150,7 +150,7 @@ function heroSection(name) {
     </section>`;
 }
 
-// Dev-only control to feel the three modes without waiting for the clock.
+// Time-of-day switcher — peek at any moment of the day, or let the clock drive it.
 function previewControl(mode) {
   const live = previewMode === null;
   const seg = (id, label) => {
@@ -161,7 +161,7 @@ function previewControl(mode) {
   };
   return `
     <div class="cx-preview rounded-2xl chunky-border bg-surface-container/70 px-3 py-2 flex items-center gap-2 flex-wrap">
-      <span class="font-label-bold text-[11px] text-on-surface-variant flex items-center gap-1">${icon("construction", "text-sm")} Preview · dev only</span>
+      <span class="font-label-bold text-[11px] text-on-surface-variant flex items-center gap-1">${icon("wb_twilight", "text-sm")} Time of day</span>
       <div class="flex items-center gap-1 flex-1 min-w-[220px] justify-end">
         ${seg("morning", "☀️ Morning")}
         ${seg("daytime", "🌤 Day")}
@@ -259,20 +259,21 @@ function cardMood(c) {
 }
 
 function cardMovement(c) {
+  // A checkmark only when Health Sync is actually on; otherwise you add steps yourself.
+  const synced = getState().settings.healthSync;
   return `
     <article class="bg-surface-container-lowest rounded-[24px] chunky-border card-shadow p-6" data-section="movement">
       <div class="flex justify-between items-start mb-4">
         <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-3 lowercase">${hbadge("directions_walk")} did you move?</h2>
-        <div class="flex items-center gap-1 bg-surface-container px-2 py-1 rounded-full chunky-border text-xs font-label-bold text-primary">${icon("sync", "text-sm")} Synced</div>
+        ${synced ? `<div class="flex items-center gap-1 bg-surface-container px-2 py-1 rounded-full chunky-border text-xs font-label-bold text-primary">${icon("check_circle", "text-sm fill-icon")} Synced</div>` : ""}
       </div>
-      <div class="text-center mb-2">
+      <div class="text-center mb-3">
         <span class="font-display-lg text-display-lg text-primary" data-steps>${c.steps.toLocaleString()}</span>
         <span class="block font-body-md text-body-md text-on-surface-variant">steps today</span>
       </div>
-      <div class="flex justify-center">
-        <button data-add-steps class="chunky-button px-4 py-1.5 bg-transparent border-dashed border-[2.5px] border-outline rounded-full flex items-center gap-1 text-on-surface-variant hover:bg-surface-container">
-          ${icon("add", "text-sm")} <span class="font-label-bold text-label-bold">Log a walk</span>
-        </button>
+      <div class="flex items-center gap-2 justify-center">
+        <input data-step-input type="number" inputmode="numeric" min="0" placeholder="add steps" class="w-28 px-3 py-2 rounded-full chunky-border bg-surface-container text-center font-label-bold text-label-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" />
+        <button data-add-steps class="chunky-button px-4 py-2 rounded-full chunky-border card-shadow bg-on-surface text-surface font-label-bold text-label-bold flex items-center gap-1">${icon("add", "text-sm")} Add</button>
       </div>
     </article>`;
 }
@@ -419,14 +420,19 @@ function wire(root, name) {
   // Mood — Poco mirrors it live.
   wireMood(root, name);
 
-  // Add steps
-  root.querySelector("[data-add-steps]")?.addEventListener("click", () => {
-    const c = getTodayCheckin();
-    const add = 500 + Math.floor(Math.random() * 1200);
-    saveCheckin({ steps: c.steps + add });
-    root.querySelector("[data-steps]").textContent = (c.steps + add).toLocaleString();
-    toast(`+${add.toLocaleString()} steps logged`, "directions_walk");
-  });
+  // Add steps — manual entry (no fake randomness).
+  const stepInput = root.querySelector("[data-step-input]");
+  const addSteps = () => {
+    const n = parseInt(stepInput?.value, 10);
+    if (!n || n <= 0) return;
+    const total = getTodayCheckin().steps + n;
+    saveCheckin({ steps: total });
+    root.querySelector("[data-steps]").textContent = total.toLocaleString();
+    stepInput.value = "";
+    toast(`+${n.toLocaleString()} steps`, "directions_walk");
+  };
+  root.querySelector("[data-add-steps]")?.addEventListener("click", addSteps);
+  stepInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") addSteps(); });
 
   // End of the day — grateful-for + one line a day, saved on change.
   root.querySelector("[data-gratitude]")?.addEventListener("change", (e) => {

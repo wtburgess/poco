@@ -164,17 +164,11 @@ function microTag(onDone) {
   const day = todayKey();
   openModal(
     `
-    <h3 class="font-headline-md text-headline-md text-on-surface mb-1">How'd that feel?</h3>
-    <p class="font-body-md text-sm text-on-surface-variant mb-4">One tap each — Poco's building your pattern map.</p>
-    <p class="font-label-bold text-label-bold text-on-surface-variant mb-2">Energy</p>
-    <div class="flex gap-2 mb-4" data-energy>
+    <h3 class="font-headline-md text-headline-md text-on-surface mb-1">How was your energy?</h3>
+    <p class="font-body-md text-sm text-on-surface-variant mb-4">One tap — Poco's building your pattern map.</p>
+    <div class="flex gap-2 mb-6" data-energy>
       <button data-tag="energy:high" class="chunky-button flex-1 py-3 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold">⚡ High</button>
       <button data-tag="energy:low" class="chunky-button flex-1 py-3 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold">🔋 Low</button>
-    </div>
-    <p class="font-label-bold text-label-bold text-on-surface-variant mb-2">Mood</p>
-    <div class="flex gap-2 mb-6" data-vibe>
-      <button data-tag="vibe:calm" class="chunky-button flex-1 py-3 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold">🟢 Calm</button>
-      <button data-tag="vibe:stressed" class="chunky-button flex-1 py-3 rounded-full chunky-border bg-surface-container font-label-bold text-label-bold">🔴 Stressed</button>
     </div>
     <button data-done class="chunky-button w-full py-3 rounded-full chunky-border bg-primary text-on-primary font-label-bold text-label-bold card-shadow">Done</button>
   `,

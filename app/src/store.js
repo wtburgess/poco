@@ -52,7 +52,6 @@ function seed() {
       calories: 2000,
       steps: 8000,
       sleepHours: 8.5,
-      water: 8,
     },
     settings: {
       healthSync: true,
@@ -189,7 +188,7 @@ function syncProfile() {
 }
 
 // ---- Mutations ----
-const DEFAULT_CHECKIN = { sleepHours: 7.5, sleepQuality: 2, mood: 2, steps: 0, water: 0, gratitude: "", note: "", logged: false };
+const DEFAULT_CHECKIN = { sleepHours: 7.5, sleepQuality: 2, mood: 2, steps: 0, gratitude: "", note: "", logged: false };
 
 export function saveCheckin(patch) {
   const key = todayKey();
