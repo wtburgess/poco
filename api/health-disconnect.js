@@ -1,4 +1,4 @@
-// Unlinks a device: best-effort revoke at Fitbit, then drop the stored tokens.
+// Unlinks a device: best-effort revoke at Google, then drop the stored tokens.
 import { getToken, delToken } from "../lib/store.js";
 
 export default async function handler(req, res) {
@@ -6,14 +6,10 @@ export default async function handler(req, res) {
   const id = String(req.query.device || body.device || "").slice(0, 64);
   try {
     const tok = await getToken(id);
-    if (tok?.access_token && process.env.FITBIT_CLIENT_ID) {
-      await fetch("https://api.fitbit.com/oauth2/revoke", {
+    if (tok?.access_token) {
+      await fetch("https://oauth2.googleapis.com/revoke?token=" + encodeURIComponent(tok.access_token), {
         method: "POST",
-        headers: {
-          Authorization: "Basic " + Buffer.from(`${process.env.FITBIT_CLIENT_ID}:${process.env.FITBIT_CLIENT_SECRET}`).toString("base64"),
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({ token: tok.access_token }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
       }).catch(() => {});
     }
     await delToken(id);

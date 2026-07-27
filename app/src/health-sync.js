@@ -54,15 +54,15 @@ export async function syncHealth({ silent = true } = {}) {
 // Run on boot: handle the OAuth return (query flag), else auto-sync if connected.
 export function initHealthSync() {
   const params = new URLSearchParams(location.search);
-  const flag = params.get("fitbit");
+  const flag = params.get("health");
   if (flag) {
     history.replaceState(null, "", location.pathname + location.hash); // strip the flag
     if (flag === "connected") {
       updateSettings({ healthSync: true });
-      toast("Fitbit connected 🎉", "check_circle");
+      toast("Health sync connected 🎉", "check_circle");
       syncHealth({ silent: false });
     } else {
-      toast("Fitbit connection failed — try again", "error");
+      toast("Connection failed — try again", "error");
     }
     return;
   }
