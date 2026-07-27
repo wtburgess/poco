@@ -71,9 +71,12 @@ export async function cloudLoad() {
   ]);
   if (!profile) return null; // brand-new user, no cloud data yet
 
+  // Full-target days vs floor-only days (the floor/ceiling mechanic).
   const checkMap = {};
+  const floorMap = {};
   checks.forEach((c) => {
-    (checkMap[c.habit_id] ||= {})[c.date] = true;
+    if (c.floor) (floorMap[c.habit_id] ||= {})[c.date] = true;
+    else (checkMap[c.habit_id] ||= {})[c.date] = true;
   });
   const mealMap = {};
   meals.forEach((m) => {
@@ -87,6 +90,7 @@ export async function cloudLoad() {
     checkinMap[c.date] = {
       sleepHours: Number(c.sleep_hours), sleepQuality: c.sleep_quality,
       mood: c.mood, steps: c.steps, logged: c.logged, loggedAt: c.logged_at,
+      gratitude: c.gratitude || "", note: c.note || "", energy: c.energy || null,
     };
   });
 
@@ -96,9 +100,10 @@ export async function cloudLoad() {
     goals: profile.goals || {},
     cosmetics: profile.cosmetics || { unlocked: [], equipped: null },
     settings: profile.settings || {},
+    review: profile.review || { focus: "", focusSetAt: null },
     checkins: checkinMap,
     meals: mealMap,
-    habits: habits.map((h) => ({ id: h.id, name: h.name, icon: h.icon, color: h.color, checks: checkMap[h.id] || {} })),
+    habits: habits.map((h) => ({ id: h.id, name: h.name, icon: h.icon, color: h.color, target: h.target || "", floor: h.floor || "", checks: checkMap[h.id] || {}, floorChecks: floorMap[h.id] || {} })),
     lastSeen: new Date().toISOString().slice(0, 10),
   };
 }
@@ -114,10 +119,10 @@ export function cloudSync(kind, p) {
   let q;
   switch (kind) {
     case "profile":
-      q = sb.from("profiles").upsert({ id: uid, name: p.name, goals: p.goals, points: p.points, cosmetics: p.cosmetics, settings: p.settings, updated_at: iso() });
+      q = sb.from("profiles").upsert({ id: uid, name: p.name, goals: p.goals, points: p.points, cosmetics: p.cosmetics, settings: p.settings, review: p.review, updated_at: iso() });
       break;
     case "checkin":
-      q = sb.from("checkins").upsert({ user_id: uid, date: p.date, sleep_hours: p.c.sleepHours, sleep_quality: p.c.sleepQuality, mood: p.c.mood, steps: p.c.steps, logged: !!p.c.logged, logged_at: p.c.loggedAt || null, updated_at: iso() });
+      q = sb.from("checkins").upsert({ user_id: uid, date: p.date, sleep_hours: p.c.sleepHours, sleep_quality: p.c.sleepQuality, mood: p.c.mood, steps: p.c.steps, gratitude: p.c.gratitude || null, note: p.c.note || null, energy: p.c.energy || null, logged: !!p.c.logged, logged_at: p.c.loggedAt || null, updated_at: iso() });
       break;
     case "meal.add":
       q = sb.from("meals").upsert({ id: p.meal.id, user_id: uid, date: p.date, name: p.meal.name, kcal: p.meal.kcal, protein: p.meal.protein, fat: p.meal.fat, carbs: p.meal.carbs, sugar: p.meal.sugar, fiber: p.meal.fiber, icon: p.meal.icon, time: p.meal.time, source: p.meal.source || "manual", created_at: iso() });
@@ -126,14 +131,15 @@ export function cloudSync(kind, p) {
       q = sb.from("meals").delete().eq("id", p.id).eq("user_id", uid);
       break;
     case "habit.add":
-      q = sb.from("habits").upsert({ id: p.habit.id, user_id: uid, name: p.habit.name, icon: p.habit.icon, color: p.habit.color, sort_order: p.order || 0 });
+      q = sb.from("habits").upsert({ id: p.habit.id, user_id: uid, name: p.habit.name, icon: p.habit.icon, color: p.habit.color, target: p.habit.target || null, floor: p.habit.floor || null, sort_order: p.order || 0 });
       break;
     case "habit.remove":
       q = sb.from("habits").delete().eq("id", p.id).eq("user_id", uid);
       break;
     case "habitcheck":
-      q = p.on
-        ? sb.from("habit_checks").upsert({ user_id: uid, habit_id: p.habitId, date: p.date })
+      // A day is either full-target (on), floor-only (floor), or cleared (delete).
+      q = (p.on || p.floor)
+        ? sb.from("habit_checks").upsert({ user_id: uid, habit_id: p.habitId, date: p.date, floor: !!p.floor })
         : sb.from("habit_checks").delete().eq("habit_id", p.habitId).eq("date", p.date).eq("user_id", uid);
       break;
     default:
@@ -159,15 +165,18 @@ export async function cloudReset(state) {
 export async function cloudPushFull(state) {
   if (!sb || !userId) return;
   const uid = userId;
-  await sb.from("profiles").upsert({ id: uid, name: state.profile?.name, goals: state.goals, points: state.points, cosmetics: state.cosmetics, settings: state.settings, updated_at: iso() });
-  const checkins = Object.entries(state.checkins || {}).map(([date, c]) => ({ user_id: uid, date, sleep_hours: c.sleepHours, sleep_quality: c.sleepQuality, mood: c.mood, steps: c.steps, logged: !!c.logged, logged_at: c.loggedAt || null }));
+  await sb.from("profiles").upsert({ id: uid, name: state.profile?.name, goals: state.goals, points: state.points, cosmetics: state.cosmetics, settings: state.settings, review: state.review, updated_at: iso() });
+  const checkins = Object.entries(state.checkins || {}).map(([date, c]) => ({ user_id: uid, date, sleep_hours: c.sleepHours, sleep_quality: c.sleepQuality, mood: c.mood, steps: c.steps, gratitude: c.gratitude || null, note: c.note || null, energy: c.energy || null, logged: !!c.logged, logged_at: c.loggedAt || null }));
   if (checkins.length) await sb.from("checkins").upsert(checkins);
   const meals = [];
   Object.entries(state.meals || {}).forEach(([date, arr]) => arr.forEach((m) => meals.push({ id: m.id, user_id: uid, date, name: m.name, kcal: m.kcal, protein: m.protein, fat: m.fat, carbs: m.carbs, sugar: m.sugar, fiber: m.fiber, icon: m.icon, time: m.time, source: m.source || "manual" })));
   if (meals.length) await sb.from("meals").upsert(meals);
-  const habits = (state.habits || []).map((h, i) => ({ id: h.id, user_id: uid, name: h.name, icon: h.icon, color: h.color, sort_order: i }));
+  const habits = (state.habits || []).map((h, i) => ({ id: h.id, user_id: uid, name: h.name, icon: h.icon, color: h.color, target: h.target || null, floor: h.floor || null, sort_order: i }));
   if (habits.length) await sb.from("habits").upsert(habits);
   const checks = [];
-  (state.habits || []).forEach((h) => Object.keys(h.checks || {}).forEach((date) => { if (h.checks[date]) checks.push({ user_id: uid, habit_id: h.id, date }); }));
+  (state.habits || []).forEach((h) => {
+    Object.keys(h.checks || {}).forEach((date) => { if (h.checks[date]) checks.push({ user_id: uid, habit_id: h.id, date, floor: false }); });
+    Object.keys(h.floorChecks || {}).forEach((date) => { if (h.floorChecks[date]) checks.push({ user_id: uid, habit_id: h.id, date, floor: true }); });
+  });
   if (checks.length) await sb.from("habit_checks").upsert(checks);
 }

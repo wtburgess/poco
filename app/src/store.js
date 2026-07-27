@@ -184,6 +184,7 @@ function syncProfile() {
     points: state.points,
     cosmetics: state.cosmetics,
     settings: state.settings,
+    review: state.review,
   });
 }
 
@@ -361,6 +362,7 @@ export function getWeeklyFocus() {
 export function setWeeklyFocus(text) {
   state.review = { ...(state.review || {}), focus: text, focusSetAt: new Date().toISOString() };
   emit();
+  syncProfile(); // the focus lives on the profile row in the cloud
 }
 
 export function updateGoals(patch) {
