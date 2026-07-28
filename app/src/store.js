@@ -6,8 +6,12 @@ const STORAGE_KEY = "poco.state.v1";
 const LEGACY_KEYS = ["brady.state.v1"];
 
 // ---- Date helpers ----
+// The user's LOCAL calendar date (YYYY-MM-DD). Deliberately not toISOString(),
+// which is UTC: east of Greenwich that filed every late-night check-in under
+// yesterday, so evening users silently lost streak days at midnight.
 export function todayKey(d = new Date()) {
-  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 export function dayKeyOffset(offset) {
   const d = new Date();
@@ -27,27 +31,18 @@ export function weekKeys(ref = new Date()) {
 }
 export const WEEKDAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 
-// ---- Seed data ----
+// ---- Starting state ----
+// Deliberately empty. A new user's first streak, first leaf and first logged meal
+// have to be theirs — demo data made every number in the app meaningless.
 function seed() {
-  const days = weekKeys();
-  const today = todayKey();
-  // Habit check history keyed by date.
-  const meditateChecks = {};
-  const walkChecks = {};
-  const readChecks = {};
-  days.forEach((k, i) => {
-    if (i < 4) meditateChecks[k] = true;
-    if (i < 5) walkChecks[k] = true;
-    if (i === 0 || i === 2) readChecks[k] = true;
-  });
-
   return {
     profile: {
-      name: "Alex Explorer",
-      level: 4,
-      treeHeight: 12,
+      name: "",
+      level: 1,
+      treeHeight: 0,
+      onboarded: false,
     },
-    points: 240,
+    points: 0,
     goals: {
       calories: 2000,
       steps: 8000,
@@ -69,30 +64,18 @@ function seed() {
       unlocked: [],
       equipped: null,
     },
-    lastSeen: today,
+    lastSeen: todayKey(),
     // Daily check-ins keyed by date: { sleepHours, sleepQuality(0-4), mood(0-4), steps, logged }
-    // Seed a 3-day streak ending yesterday so today's check-in continues it.
-    checkins: {
-      [today]: { sleepHours: 7.5, sleepQuality: 3, mood: 3, steps: 4203, logged: false },
-      [dayKeyOffset(-1)]: { sleepHours: 7.2, sleepQuality: 3, mood: 4, steps: 9120, logged: true },
-      [dayKeyOffset(-2)]: { sleepHours: 6.8, sleepQuality: 2, mood: 3, steps: 10420, logged: true },
-      [dayKeyOffset(-3)]: { sleepHours: 8.0, sleepQuality: 4, mood: 4, steps: 8300, logged: true },
-    },
+    checkins: {},
     // Meals keyed by date -> array of { id, name, kcal, time, icon }
-    meals: {
-      [today]: [
-        { id: mkid(), name: "Oatmeal & Berries", kcal: 350, time: "8:30 AM", icon: "breakfast_dining" },
-        { id: mkid(), name: "Turkey Sandwich", kcal: 420, time: "12:45 PM", icon: "lunch_dining" },
-      ],
-    },
+    meals: {},
     // Habits track a Target (ceiling) and an Emergency Floor. Hitting the floor
     // keeps a streak alive — the anti "all-or-nothing" mechanic. floorChecks holds
     // floor-only days, keyed by date, parallel to `checks` (the full-target days).
-    habits: [
-      { id: mkid(), name: "Meditate", icon: "self_improvement", color: "primary-fixed", target: "10 min", floor: "3 breaths", checks: meditateChecks, floorChecks: {} },
-      { id: mkid(), name: "Read", icon: "menu_book", color: "secondary-fixed", target: "20 min", floor: "1 page", checks: readChecks, floorChecks: {} },
-      { id: mkid(), name: "Walk", icon: "directions_walk", color: "tertiary-fixed", target: "8k steps", floor: "round the block", checks: walkChecks, floorChecks: {} },
-    ],
+    // Onboarding plants the first one.
+    habits: [],
+    // Whole dishes saved by name — see addFavorite.
+    favorites: [],
   };
 }
 
@@ -122,9 +105,16 @@ function load() {
 // Backfill fields added in later versions so old saves keep working.
 function migrate(s) {
   const base = seed();
+  // Anyone with an existing save has already "started" — never onboard them again.
+  const prevProfile = s.profile || null;
+  s.profile = { ...base.profile, ...(prevProfile || {}) };
+  // A save that already has a name predates onboarding — having got this far is
+  // proof enough. A nameless one (an empty cloud profile) still needs it.
+  if (prevProfile && prevProfile.onboarded === undefined) s.profile.onboarded = !!s.profile.name;
   s.settings = { ...base.settings, ...(s.settings || {}) };
   s.cosmetics = { ...base.cosmetics, ...(s.cosmetics || {}) };
   s.review = { ...base.review, ...(s.review || {}) };
+  if (!Array.isArray(s.favorites)) s.favorites = [];
   // Backfill floor tracking on habits saved before the floor/ceiling feature.
   (s.habits || []).forEach((h) => { if (!h.floorChecks) h.floorChecks = {}; });
   if (!s.lastSeen) s.lastSeen = todayKey();
@@ -208,19 +198,37 @@ export function isCheckinLoggedToday() {
   return !!(c && c.logged);
 }
 
-// Consecutive logged days ending today (or yesterday if today isn't logged yet).
+// Logged days ending today (or yesterday if today isn't logged yet), tolerating a
+// single missed day. Habits already have an emergency floor; this is the check-in's
+// version of it — miss a day and Poco waits, miss two in a row and you start over.
+// Life happens on a Tuesday, and losing a 12-day run over it is why people quit.
+function loggedOn(offset) {
+  const c = state.checkins[dayKeyOffset(offset)];
+  return !!(c && c.logged);
+}
+
 export function checkinStreak() {
-  const logged = (o) => {
-    const c = state.checkins[dayKeyOffset(o)];
-    return !!(c && c.logged);
-  };
   let streak = 0;
-  let offset = logged(0) ? 0 : -1;
-  while (logged(offset)) {
-    streak++;
+  let offset = loggedOn(0) ? 0 : -1;
+  let skipped = false;
+  while (true) {
+    if (loggedOn(offset)) {
+      streak++;
+      offset--;
+      skipped = false;
+      continue;
+    }
+    if (skipped) break; // two blanks back to back — the run is over
+    skipped = true;
     offset--;
   }
   return streak;
+}
+
+// True when the run is only alive because of the grace day, so the UI can say so
+// instead of letting it look like nothing happened.
+export function streakOnGrace() {
+  return !loggedOn(-1) && checkinStreak() > 0;
 }
 
 // Commit today's check-in. Idempotent — awards leaves only on the first log.
@@ -262,6 +270,48 @@ export function removeMeal(id) {
 }
 export function getTodayMeals() {
   return state.meals[todayKey()] || [];
+}
+
+// ---- Favourite dishes ----
+// A whole meal kept by name — every ingredient, one tap to log the lot.
+// ponytail: local only. The cloud profile row has no column for these, and adding
+// one would break the upsert for anyone who hasn't run the migration; give them a
+// column when favourites need to follow you to a second device.
+export function getFavorites() {
+  return state.favorites || [];
+}
+
+export function addFavorite({ name, icon, items }) {
+  const clean = String(name || "").trim() || "My dish";
+  const fav = {
+    id: mkid(),
+    name: clean,
+    icon: icon || "restaurant",
+    // Copies, not references — editing tomorrow's meal must not rewrite the recipe.
+    items: items.map((it) => ({ ...it })),
+  };
+  const rest = getFavorites().filter((f) => f.name.toLowerCase() !== clean.toLowerCase());
+  state.favorites = [fav, ...rest].slice(0, 20);
+  emit();
+  return fav;
+}
+
+export function removeFavorite(id) {
+  state.favorites = getFavorites().filter((f) => f.id !== id);
+  emit();
+}
+
+// The bites you actually eat, most recent first, de-duped by name. Real eating is
+// repetitive, so re-logging yesterday's breakfast should be one tap, not a form.
+export function recentMeals(limit = 6) {
+  const seen = new Map();
+  for (let o = 0; o >= -21 && seen.size < limit; o--) {
+    for (const m of state.meals[dayKeyOffset(o)] || []) {
+      const k = String(m.name || "").trim().toLowerCase();
+      if (k && !seen.has(k)) seen.set(k, m);
+    }
+  }
+  return [...seen.values()].slice(0, limit);
 }
 
 // Set a habit's status for a day: "done" (full target), "floor" (minimum), or

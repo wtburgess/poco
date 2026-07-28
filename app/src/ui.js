@@ -276,7 +276,7 @@ export function shell(active, bodyHtml) {
     ${sideNav(active)}
     <div class="md:pl-64 min-h-screen">
       ${topBar()}
-      <main class="max-w-xl mx-auto px-container-padding pt-6 pb-32 flex flex-col gap-gutter view-enter">
+      <main class="max-w-xl mx-auto px-container-padding pt-6 pb-32 flex flex-col gap-gutter">
         ${bodyHtml}
       </main>
     </div>
@@ -308,6 +308,7 @@ export function openModal(innerHtml, { onMount } = {}) {
     if (e.target === backdrop) closeModal();
   });
   document.addEventListener("keydown", escClose);
+  document.body.style.overflow = "hidden"; // stop the page scrolling behind the sheet
   if (onMount) onMount(root);
 }
 function escClose(e) {
@@ -316,6 +317,7 @@ function escClose(e) {
 export function closeModal() {
   document.getElementById("modal-root").innerHTML = "";
   document.removeEventListener("keydown", escClose);
+  document.body.style.overflow = "";
 }
 
 export function pct(n, d) {

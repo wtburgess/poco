@@ -91,7 +91,7 @@ export async function cloudLoad() {
   });
 
   return {
-    profile: { name: profile.name || "friend", level: 4, treeHeight: 12 },
+    profile: { name: profile.name || "", level: 1, treeHeight: 0 },
     points: profile.points || 0,
     goals: profile.goals || {},
     cosmetics: profile.cosmetics || { unlocked: [], equipped: null },
@@ -99,7 +99,7 @@ export async function cloudLoad() {
     checkins: checkinMap,
     meals: mealMap,
     habits: habits.map((h) => ({ id: h.id, name: h.name, icon: h.icon, color: h.color, checks: checkMap[h.id] || {} })),
-    lastSeen: new Date().toISOString().slice(0, 10),
+    // lastSeen is left out on purpose — migrate() fills it with the local date.
   };
 }
 

@@ -9,6 +9,7 @@ import {
   initSupabase, isCloud, getSession, onAuth, cloudLoad, cloudPushFull, currentUser,
 } from "./supabase.js";
 import { renderLogin } from "./views/login.js";
+import { renderOnboarding } from "./views/onboarding.js";
 import { renderCheckin } from "./views/checkin.js";
 import { renderFood } from "./views/food.js";
 import { renderHealth } from "./views/health.js";
@@ -35,6 +36,9 @@ function currentRoute() {
 function route() {
   const name = currentRoute();
   ROUTES[name](app);
+  // Only a real navigation animates. Views re-render themselves on every tap, and
+  // replaying the fade there made the whole screen flicker on each interaction.
+  app.querySelector("main")?.classList.add("view-enter");
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 
@@ -72,16 +76,26 @@ async function enterApp() {
       if (cloud) {
         hydrate(cloud);
       } else {
-        // Brand-new account: seed the cloud from local, with a real name.
+        // Brand-new account: seed the cloud from local, prefilling the name field
+        // from their email so onboarding has something sensible to show.
         const user = await currentUser();
-        const emailName = user?.email ? user.email.split("@")[0] : "friend";
-        if (getState().profile.name === "Alex Explorer") updateProfile({ name: cap(emailName) });
+        const emailName = user?.email ? user.email.split("@")[0] : "";
+        if (!getState().profile.name && emailName) updateProfile({ name: cap(emailName) });
         await cloudPushFull(getState());
       }
     } catch (e) {
       console.warn("[cloud] load failed, using local:", e);
     }
   }
+  // First run: name + the one thing they're here for, before anything else.
+  if (!getState().profile.onboarded) {
+    renderOnboarding(app, start);
+    return;
+  }
+  start();
+}
+
+function start() {
   const gap = noteVisit();
   route();
   initNudges();

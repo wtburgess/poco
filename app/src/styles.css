@@ -9,6 +9,20 @@
   --shadow-press: 0px 0px 0px 0px rgba(40, 24, 11, 1);
 }
 
+/* ---- Touch feel ---- */
+/* No grey flash on every tap; no scroll-chaining / pull-to-refresh bounce. */
+* { -webkit-tap-highlight-color: transparent; }
+html { overscroll-behavior-y: none; }
+button, a, label, input, select { touch-action: manipulation; }
+/* Anything under 16px makes iOS zoom the whole page in on focus and never zoom
+   back out — the single most jarring thing on mobile. */
+@media (max-width: 640px) {
+  input, textarea, select { font-size: 16px !important; }
+}
+/* An input in a flex row won't shrink past its ~20-character intrinsic width
+   without this, so rows overflow the screen on narrow phones. */
+input { min-width: 0; }
+
 body {
   font-family: "Nunito Sans", sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -146,6 +160,12 @@ body {
   padding: 24px;
   box-shadow: 0px 8px 0px 0px rgba(40, 24, 11, 1);
   animation: sheetUp 0.28s ease both;
+  /* A tall sheet (a multi-item food review) used to grow off the top of the
+     screen with no way to reach it — the backdrop is fixed and doesn't scroll. */
+  max-height: 85dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-bottom: env(safe-area-inset-bottom);
 }
 @keyframes sheetUp {
   from { opacity: 0; transform: translateY(24px); }

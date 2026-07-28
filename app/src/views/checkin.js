@@ -5,9 +5,10 @@
 // the day (dawn → daylight → dusk) and Poco changes pose to match.
 import {
   getTodayCheckin, saveCheckin, getTodayMeals, getState,
-  commitCheckin, isCheckinLoggedToday, checkinStreak, getWeeklyFocus,
+  commitCheckin, isCheckinLoggedToday, checkinStreak, streakOnGrace, getWeeklyFocus,
 } from "../store.js";
 import { icon, pocoImg, toast, shell, celebrate } from "../ui.js";
+import { topInsight } from "../insights.js";
 import { heroState, doneTap } from "../poco.js";
 import { logBite } from "./logfood.js";
 import { syncHealth } from "../health-sync.js";
@@ -70,7 +71,7 @@ export function renderCheckin(root, { name }) {
         ${focusBanner()}
         ${reviewBanner()}
         ${heroSection(name, mode)}
-        ${previewControl(mode)}
+        ${insightCard()}
 
         ${expanded.map((s) => sectionCard(s, c, meals)).join("")}
 
@@ -86,6 +87,9 @@ export function renderCheckin(root, { name }) {
             ${collapsed.map((s) => summaryRow(s, c, meals)).join("")}
           </div>
         ` : ""}
+
+        ${previewControl(mode)}
+        ${reviewLink()}
 
         <div class="h-24 md:h-4"></div>
       </div>
@@ -110,23 +114,50 @@ function focusBanner() {
     </div>`;
 }
 
-// Launcher for the weekly review — emphasised on the configured review day (and the
-// morning after), quietly available the rest of the week.
-function reviewBanner() {
+// Launcher for the weekly review. On its day it's a banner at the top; the rest of
+// the week it's a quiet link at the bottom — the top of the screen belongs to today.
+function reviewDue() {
   const { settings } = getState();
-  if (!settings.reviewEnabled) return "";
+  if (!settings.reviewEnabled) return false;
   const today = new Date().getDay();
   const rd = Number.isInteger(settings.reviewDay) ? settings.reviewDay : 0;
-  const due = today === rd || today === (rd + 1) % 7;
+  return today === rd || today === (rd + 1) % 7;
+}
+
+function reviewBanner() {
+  if (!reviewDue()) return "";
   return `
-    <button data-review class="chunky-button w-full flex items-center gap-3 px-4 py-3 rounded-2xl chunky-border card-shadow text-left ${due ? "bg-primary text-on-primary" : "bg-surface-container-lowest text-on-surface"}">
-      <span class="w-9 h-9 rounded-full chunky-border flex items-center justify-center shrink-0 ${due ? "bg-surface/25" : "bg-surface-container"}">${icon("event_available", due ? "" : "text-primary")}</span>
+    <button data-review class="chunky-button w-full flex items-center gap-3 px-4 py-3 rounded-2xl chunky-border card-shadow text-left bg-primary text-on-primary">
+      <span class="w-9 h-9 rounded-full chunky-border flex items-center justify-center shrink-0 bg-surface/25">${icon("event_available")}</span>
       <div class="flex-1 min-w-0">
-        <p class="font-label-bold text-label-bold">${due ? "Time for your weekly review" : "Weekly review"}</p>
-        <p class="text-xs ${due ? "opacity-80" : "text-on-surface-variant"}">${due ? "2–3 min. Celebrate, adjust, set next week's anchor." : "Reflect whenever you're ready →"}</p>
+        <p class="font-label-bold text-label-bold">Time for your weekly review</p>
+        <p class="text-xs opacity-80">2–3 min. Celebrate, adjust, set next week's anchor.</p>
       </div>
-      ${icon("chevron_right", due ? "" : "text-on-surface-variant")}
+      ${icon("chevron_right")}
     </button>`;
+}
+
+function reviewLink() {
+  if (!getState().settings.reviewEnabled || reviewDue()) return "";
+  return `
+    <button data-review class="w-full flex items-center justify-center gap-1.5 py-2 font-label-bold text-label-bold text-on-surface-variant">
+      ${icon("event_available", "text-base")} Weekly review ${icon("chevron_right", "text-base")}
+    </button>`;
+}
+
+// The payoff for logging: one thing they couldn't have known without the data.
+// Silent until there's a real pattern — no "keep logging!" placeholder.
+function insightCard() {
+  const best = topInsight(getState());
+  if (!best) return "";
+  return `
+    <div class="bg-primary-fixed chunky-border card-shadow rounded-2xl px-4 py-3 flex items-start gap-3">
+      <span class="w-8 h-8 rounded-full chunky-border bg-surface-container-lowest flex items-center justify-center shrink-0">${icon(best.icon, "text-primary text-[18px] fill-icon")}</span>
+      <div class="flex-1 min-w-0">
+        <p class="font-label-bold text-[11px] text-on-primary-container uppercase tracking-wide">Poco noticed</p>
+        <p class="font-body-md text-body-md text-on-surface leading-snug">${best.text}</p>
+      </div>
+    </div>`;
 }
 
 function collapsedHeading(mode) {
@@ -142,12 +173,12 @@ function heroSection(name) {
   const { title, sub } = heroState(name);
   return `
     <section class="text-center mb-1" data-hero>
-      <div class="flex justify-center mb-3">
-        <div class="w-40 h-40 rounded-full overflow-hidden chunky-border card-shadow bg-secondary-container flex items-center justify-center" data-poco>${pocoImg(148)}</div>
+      <div class="flex justify-center mb-2 md:mb-3">
+        <div class="w-28 h-28 md:w-40 md:h-40 rounded-full overflow-hidden chunky-border card-shadow bg-secondary-container flex items-center justify-center" data-poco>${pocoImg(148)}</div>
       </div>
-      <div class="flex justify-center mb-3">${streakBadge()}</div>
+      <div class="flex justify-center mb-2">${streakBadge()}</div>
       <h1 class="font-headline-md text-headline-md text-on-background mb-1">${title}</h1>
-      <p class="font-body-md text-body-md text-on-surface-variant max-w-sm mx-auto">${sub}</p>
+      <p class="font-body-md text-sm md:text-body-md leading-snug md:leading-normal text-on-surface-variant max-w-sm mx-auto">${sub}</p>
     </section>`;
 }
 
@@ -180,8 +211,16 @@ function streakBadge() {
   if (s <= 0 && !logged) {
     return `<div class="inline-flex items-center gap-2 bg-surface-container px-4 py-1.5 rounded-full chunky-border font-label-bold text-label-bold text-on-surface-variant">🌱 Start a streak today</div>`;
   }
-  return `<div class="inline-flex items-center gap-2 bg-tertiary-fixed px-4 py-1.5 rounded-full chunky-border card-shadow font-label-bold text-label-bold text-on-tertiary-fixed">
-    ${icon("local_fire_department", "streak-flame text-tertiary fill-icon")} ${s}-day streak
+  // Say the grace day out loud — a streak that survived a miss is only reassuring
+  // if you can see that it did.
+  const resting = streakOnGrace()
+    ? `<span class="block text-[11px] font-label-bold text-on-surface-variant mt-1">🌙 rest day taken — streak's safe, don't skip today</span>`
+    : "";
+  return `<div class="text-center">
+    <div class="inline-flex items-center gap-2 bg-tertiary-fixed px-4 py-1.5 rounded-full chunky-border card-shadow font-label-bold text-label-bold text-on-tertiary-fixed">
+      ${icon("local_fire_department", "streak-flame text-tertiary fill-icon")} ${s}-day streak
+    </div>
+    ${resting}
   </div>`;
 }
 

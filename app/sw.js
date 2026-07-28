@@ -20,9 +20,11 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Network-first for same-origin GETs — keeps deployed updates fresh online,
-// falls back to cache when offline. /api/* is never intercepted (always live).
-// Having a fetch handler is also what lets Android/Chrome offer "Install app".
+// Stale-while-revalidate for same-origin GETs: paint instantly from cache, then
+// refresh in the background so the next launch is up to date. Network-first meant
+// every launch on a slow phone connection waited on the network first.
+// /api/* is never intercepted (always live). Having a fetch handler is also what
+// lets Android/Chrome offer "Install app".
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
@@ -31,15 +33,18 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/api/")) return;     // never cache API calls
 
   event.respondWith(
-    fetch(request)
-      .then((res) => {
-        if (res && res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy));
-        }
-        return res;
-      })
-      .catch(() => caches.match(request).then((cached) => cached || caches.match("/")))
+    caches.match(request).then((cached) => {
+      const fresh = fetch(request)
+        .then((res) => {
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(request, copy));
+          }
+          return res;
+        })
+        .catch(() => cached || caches.match("/"));
+      return cached || fresh;
+    })
   );
 });
 

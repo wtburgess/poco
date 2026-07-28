@@ -19,6 +19,8 @@
 try {
   tailwind.config = {
     darkMode: "class",
+    // On a touch screen a tap leaves :hover stuck on, so buttons stayed highlighted.
+    future: { hoverOnlyWhenSupported: true },
     theme: {
       extend: {
         colors: {

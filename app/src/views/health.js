@@ -6,6 +6,7 @@ import {
   getState, weekKeys, WEEKDAY_LABELS, todayKey,
 } from "../store.js";
 import { icon, pocoImg, shell } from "../ui.js";
+import { correlations, sleepMoodLink, sortedCheckins, avgOf } from "../insights.js";
 
 const MOOD_WORDS = ["rough", "meh", "okay", "good", "glowing"];
 
@@ -50,8 +51,11 @@ export function renderHealth(root) {
 }
 
 // ---- Coach's summary: one actionable takeaway ----
+// Silent until the data says something. Same rule as the correlations.
 function coachCard() {
-  const { text, focus } = coachTakeaway();
+  const takeaway = coachTakeaway();
+  if (!takeaway) return "";
+  const { text, focus } = takeaway;
   return `
     <div class="bg-[#ffeadc] chunky-border card-shadow rounded-[20px] p-5 flex gap-4 items-start">
       <div class="w-12 h-12 rounded-full chunky-border overflow-hidden bg-secondary-container flex-shrink-0 flex items-center justify-center">${pocoImg(46)}</div>
@@ -64,11 +68,11 @@ function coachCard() {
 }
 
 // ---- Correlation carousel (auto-calculated, swipeable) ----
+// Shows nothing until there's something real to say — an empty "keep logging and
+// I'll find patterns" card is just a chore reminder wearing an insight's clothes.
 function correlationCarousel() {
-  const cards = correlations();
-  if (!cards.length) {
-    return insightPlaceholder("Log a few more days and I'll start spotting what moves your numbers.");
-  }
+  const cards = correlations(getState());
+  if (!cards.length) return "";
   return `
     <div class="-mx-container-padding px-container-padding overflow-x-auto no-scrollbar snap-x snap-mandatory flex gap-3" data-carousel>
       ${cards.map((c) => `
@@ -211,10 +215,8 @@ function energyLabel(c) {
 }
 
 function coachTakeaway() {
-  const entries = sortedCheckins();
-  if (entries.length < 3) {
-    return { text: "Keep checking in — a few more days and I'll turn your data into one clear focus.", focus: "" };
-  }
+  const entries = sortedCheckins(getState().checkins);
+  if (entries.length < 3) return null;
   // Sleep→mood link drives the headline takeaway when it's real.
   const link = sleepMoodLink(entries);
   if (link && link.deltaPct >= 12) {
@@ -228,76 +230,7 @@ function coachTakeaway() {
   return { text: "A flatter week. Small wins compound — pick one lever and lean on it.", focus: "Set a single focus in your weekly review." };
 }
 
-// Direct-overlay + time-lagged correlation cards, computed where the data supports it.
-function correlations() {
-  const entries = sortedCheckins();
-  const cards = [];
-  const link = sleepMoodLink(entries);
-  if (link && Math.abs(link.deltaPct) >= 8) {
-    cards.push({
-      kind: "Time-lagged ripple", icon: "nightlight",
-      text: `After a <b>7h+ sleep</b> night, your next-day mood is <b>${link.deltaPct > 0 ? "+" : ""}${link.deltaPct}%</b>.`,
-    });
-  }
-  const hl = bestHabitMoodLink(entries);
-  if (hl && Math.abs(hl.deltaPct) >= 8) {
-    cards.push({
-      kind: "Direct overlay", icon: "insights",
-      text: `On days you log <b>${esc(hl.name)}</b>, your mood runs <b>${hl.deltaPct > 0 ? "+" : ""}${hl.deltaPct}%</b>.`,
-    });
-  }
-  const stepMood = stepsMoodLink(entries);
-  if (stepMood && Math.abs(stepMood.deltaPct) >= 8) {
-    cards.push({
-      kind: "Direct overlay", icon: "directions_walk",
-      text: `On your more active days, mood is <b>${stepMood.deltaPct > 0 ? "+" : ""}${stepMood.deltaPct}%</b>.`,
-    });
-  }
-  return cards;
-}
-
-// ponytail: simple conditional-average "lift", not a real regression — enough to
-// surface a pattern from a handful of check-ins without pretending to be science.
-function sleepMoodLink(entries) {
-  const pairs = [];
-  for (let i = 1; i < entries.length; i++) {
-    const prev = entries[i - 1], cur = entries[i];
-    if (prev.c.sleepHours != null && cur.c.mood != null) pairs.push({ good: prev.c.sleepHours >= 7, mood: cur.c.mood + 1 });
-  }
-  return lift(pairs.filter((p) => p.good).map((p) => p.mood), pairs.filter((p) => !p.good).map((p) => p.mood));
-}
-function bestHabitMoodLink(entries) {
-  const { habits } = getState();
-  let best = null;
-  for (const h of habits) {
-    const on = [], off = [];
-    for (const e of entries) {
-      if (e.c.mood == null) continue;
-      (h.checks[e.k] ? on : off).push(e.c.mood + 1);
-    }
-    const l = lift(on, off);
-    if (l && (!best || Math.abs(l.deltaPct) > Math.abs(best.deltaPct))) best = { ...l, name: h.name };
-  }
-  return best;
-}
-function stepsMoodLink(entries) {
-  const withBoth = entries.filter((e) => e.c.steps != null && e.c.mood != null);
-  if (withBoth.length < 4) return null;
-  const med = median(withBoth.map((e) => e.c.steps));
-  return lift(withBoth.filter((e) => e.c.steps >= med).map((e) => e.c.mood + 1), withBoth.filter((e) => e.c.steps < med).map((e) => e.c.mood + 1));
-}
-function lift(a, b) {
-  if (a.length < 2 || b.length < 2) return null;
-  const ma = avgOf(a), mb = avgOf(b);
-  if (!mb) return null;
-  return { deltaPct: Math.round(((ma - mb) / mb) * 100) };
-}
-
 // ---- helpers ----
-function sortedCheckins() {
-  const { checkins } = getState();
-  return Object.keys(checkins).sort().map((k) => ({ k, c: checkins[k] })).filter((e) => e.c);
-}
 function vineChart(series, max, stroke, leafFill) {
   const pts = series.map((v, i) => ({ x: (i / 6) * 100, y: v == null ? null : 38 - (Math.max(0, Math.min(max, v)) / max) * 34 })).filter((p) => p.y != null);
   if (pts.length < 2) {
@@ -310,14 +243,6 @@ function vineChart(series, max, stroke, leafFill) {
   }
   const leaves = pts.map((p, i) => (i % 2 === 1 ? `<path d="M ${p.x},${p.y} q 5,-5 3,-10 q -6,3 -3,10 z" fill="${leafFill}" stroke="${stroke}" stroke-width="1.2"/>` : "")).join("");
   return `<svg class="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 40"><path d="${d}" fill="none" stroke="${stroke}" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"/>${leaves}</svg>`;
-}
-function avgOf(arr) {
-  const nums = arr.filter((n) => n != null);
-  return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
-}
-function median(arr) {
-  const s = [...arr].sort((a, b) => a - b);
-  return s[Math.floor(s.length / 2)] || 0;
 }
 function fmt(n, dp) {
   return Number(n).toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp });

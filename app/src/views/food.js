@@ -1,6 +1,6 @@
 // Food tracker view.
 import {
-  getTodayMeals, removeMeal, getState, weekKeys,
+  getTodayMeals, removeMeal, getState, weekKeys, todayKey,
 } from "../store.js";
 import { icon, pocoImg, shell, toast, pct } from "../ui.js";
 import { logBite } from "./logfood.js";
@@ -180,7 +180,7 @@ function leaf({ label, active, today }) {
 function weekIntake() {
   const { meals } = getState();
   const labels = ["M", "T", "W", "T", "F", "S", "S"];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKey();
   return weekKeys().map((k, i) => ({
     label: labels[i],
     active: (meals[k] || []).reduce((s, m) => s + (m.kcal || 0), 0),
